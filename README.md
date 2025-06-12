@@ -28,7 +28,7 @@ This script provides 23 different system optimization and repair operations:
 
 1. Download the script:
    ```bash
-   curl -O https://your-domain/optimacos.sh
+   curl -O https://raw.githubusercontent.com/TheCreateGM/optimize-macos/refs/heads/main/optimacos.sh
    ```
 
 2. Make it executable:
