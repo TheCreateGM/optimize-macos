@@ -4,7 +4,7 @@ A comprehensive shell script designed to fix common macOS issues including Finde
 
 ## 🚀 Features
 
-This script provides 24 different system optimization and repair operations:
+This script provides 28 different system optimization and repair operations:
 
 ### Core System Fixes
 - **Finder Issues**: Restart Finder, clear preferences, and fix unresponsive behavior
@@ -14,6 +14,7 @@ This script provides 24 different system optimization and repair operations:
 
 ### Performance Optimization
 - **Animation Disabling**: Remove all UI animations for faster system responsiveness
+- **Visual Effects Reduction**: Minimize transparency and effects for better performance
 - **Memory Management**: Purge inactive memory and optimize system resources
 
 ### Advanced Diagnostics
@@ -76,15 +77,19 @@ The script runs in interactive mode, asking for confirmation before each operati
 | 13 | Thin Time Machine Snapshots | Frees up disk space |
 | 14 | Delete Old System Logs | Removes logs older than 7 days |
 | 15 | Clear Diagnostic Reports | Removes crash reports |
-| 16 | Check for Large Files | Identifies files >1GB in home folder |
-| 17 | Verify Startup Disk | Checks disk for errors |
-| 18 | Check System Crash Logs | Analyzes recent crashes |
-| 19 | Check Finder Logs | Diagnoses Finder-specific issues |
-| 20 | Free Startup Disk Space | Comprehensive disk cleanup |
-| 21 | Disable Login Items | Speeds up system startup |
-| 22 | Fix Battery Drain | Optimizes battery performance |
-| 23 | Fix Wi-Fi Issues | Resolves network connectivity problems |
-| 24 | Disable All Animations | Removes UI animations for better performance |
+| 16 | Disable Crash Reporter Prompts | Stops crash dialog popups |
+| 17 | Clear Old User Logs | Removes user logs older than 7 days |
+| 18 | Check for Large Files | Identifies files >1GB in home folder |
+| 19 | Verify Startup Disk | Checks disk for errors |
+| 20 | Check System Crash Logs | Analyzes recent crashes |
+| 21 | Check Finder Logs | Diagnoses Finder-specific issues |
+| 22 | Free Startup Disk Space | Comprehensive disk cleanup |
+| 23 | Disable Login Items | Speeds up system startup |
+| 24 | Fix Battery Drain | Optimizes battery performance |
+| 25 | Fix Wi-Fi Issues | Resolves network connectivity problems |
+| 26 | Disable All Animations | Removes UI animations for better performance |
+| 27 | Reduce Visual Effects | Minimizes transparency and effects |
+| 28 | Keep Software Updated | Checks for and installs macOS updates |
 
 ## ⚙️ Configuration
 
@@ -117,6 +122,7 @@ These files are automatically removed if no issues are found.
 - Application saved states
 - Temporary files in `/tmp` and `/var/tmp`
 - Browser caches (Safari, Chrome, Firefox)
+- Old diagnostic reports and crash logs
 
 ### System Databases
 - Launch Services database
@@ -128,12 +134,14 @@ These files are automatically removed if no issues are found.
 - User interface settings (animations, smooth scrolling)
 - Dock and window behavior settings
 - Finder display preferences
+- Crash reporter dialog settings
 
 ### Storage Cleanup
 - Trash contents
 - Old downloads (30+ days)
 - iOS device backups
-- Xcode derived data
+- iOS software updates
+- Xcode derived data and archives
 - Time Machine local snapshots
 
 ## ⚠️ Important Notes
@@ -142,6 +150,7 @@ These files are automatically removed if no issues are found.
 2. **Application Closure**: Close all apps before running for best results
 3. **Restart Recommended**: Some changes require a system restart to take full effect
 4. **Backup First**: Consider backing up important data before running extensive cleanups
+5. **Network Configuration**: Wi-Fi fixes may require a system restart
 
 ## 🚨 Troubleshooting
 
@@ -162,6 +171,7 @@ If you encounter issues:
 - Poor battery life
 - Slow startup times
 - Sluggish UI animations and transitions
+- Persistent crash reporter dialogs
 
 ## 📞 Support
 
@@ -169,9 +179,20 @@ If you experience persistent issues after running the script, the script provide
 
 - Boot into Safe Mode
 - Run Apple Diagnostics
-- Check Activity Monitor
+- Check Activity Monitor for problematic processes
+- Manage Login Items in System Settings
 - Create a new user account for testing
 - Consider macOS reinstallation
+
+## 🎯 Performance Optimization Features
+
+The script includes several performance-focused optimizations:
+
+- **Animation Removal**: Disables Dock, window, and UI animations
+- **Visual Effects Reduction**: Minimizes transparency and shadows
+- **Memory Optimization**: Purges inactive memory and reduces background processes
+- **Battery Management**: Configures power settings for optimal battery life
+- **Login Optimization**: Guides users to disable unnecessary startup items
 
 ## 📄 License
 
@@ -183,6 +204,6 @@ Feel free to submit issues, feature requests, or improvements to make this scrip
 
 ---
 
-**Version**: 1.0
+**Version**: 2.0
 **Last Updated**: 2025
 **Compatibility**: macOS 10.15+
