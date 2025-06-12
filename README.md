@@ -4,13 +4,17 @@ A comprehensive shell script designed to fix common macOS issues including Finde
 
 ## 🚀 Features
 
-This script provides 23 different system optimization and repair operations:
+This script provides 24 different system optimization and repair operations:
 
 ### Core System Fixes
 - **Finder Issues**: Restart Finder, clear preferences, and fix unresponsive behavior
 - **App Launch Problems**: Reset Launch Services database and clear quarantine attributes
 - **System Performance**: Clear caches, purge memory, and run maintenance scripts
 - **Storage Management**: Free up startup disk space and identify large files
+
+### Performance Optimization
+- **Animation Disabling**: Remove all UI animations for faster system responsiveness
+- **Memory Management**: Purge inactive memory and optimize system resources
 
 ### Advanced Diagnostics
 - **Crash Detection**: Analyze system logs for application crashes
@@ -80,6 +84,7 @@ The script runs in interactive mode, asking for confirmation before each operati
 | 21 | Disable Login Items | Speeds up system startup |
 | 22 | Fix Battery Drain | Optimizes battery performance |
 | 23 | Fix Wi-Fi Issues | Resolves network connectivity problems |
+| 24 | Disable All Animations | Removes UI animations for better performance |
 
 ## ⚙️ Configuration
 
@@ -119,6 +124,11 @@ These files are automatically removed if no issues are found.
 - DNS cache
 - Spotlight index (rebuilt)
 
+### System Preferences
+- User interface settings (animations, smooth scrolling)
+- Dock and window behavior settings
+- Finder display preferences
+
 ### Storage Cleanup
 - Trash contents
 - Old downloads (30+ days)
@@ -151,6 +161,7 @@ If you encounter issues:
 - Wi-Fi connectivity problems
 - Poor battery life
 - Slow startup times
+- Sluggish UI animations and transitions
 
 ## 📞 Support
 
@@ -172,6 +183,6 @@ Feel free to submit issues, feature requests, or improvements to make this scrip
 
 ---
 
-**Version**: 1.0  
-**Last Updated**: 2025  
+**Version**: 1.0
+**Last Updated**: 2025
 **Compatibility**: macOS 10.15+
