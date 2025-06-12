@@ -467,6 +467,57 @@ fix_wifi() {
     fi
 }
 
+# --- 24. Disable All Animation Effects ---
+disable_animations() {
+    echo -e "\n⚡ Section 24: Disabling All Animation Effects"
+    echo "---------------------------------------------"
+    if ask_yes_no "Disable all macOS animation effects for better performance?"; then
+        echo "Disabling all animation effects..."
+
+        # Disable Dock animations
+        defaults write com.apple.dock autohide-time-modifier -float 0
+        defaults write com.apple.dock autohide-delay -float 0
+        defaults write com.apple.dock expose-animation-duration -float 0.1
+        defaults write com.apple.dock launchanim -bool false
+
+        # Disable Mission Control animations
+        defaults write com.apple.dock expose-animation-duration -float 0.1
+
+        # Disable opening and closing animations
+        defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
+
+        # Disable smooth scrolling
+        defaults write NSGlobalDomain NSScrollAnimationEnabled -bool false
+
+        # Disable menu bar animations
+        defaults write NSGlobalDomain NSScrollViewRubberbanding -bool false
+
+        # Disable window resize animation
+        defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
+
+        # Disable Finder animations
+        defaults write com.apple.finder DisableAllAnimations -bool true
+
+        # Disable animations when opening Quick Look windows
+        defaults write -g QLPanelAnimationDuration -float 0
+
+        # Disable animation when opening the Info window in Finder
+        defaults write com.apple.finder DisableAllAnimations -bool true
+
+        # Disable animations when opening applications
+        defaults write com.apple.dock springboard-show-duration -float 0
+        defaults write com.apple.dock springboard-hide-duration -float 0
+
+        # Restart affected applications
+        killall Dock
+        killall Finder
+
+        echo "✅ All animation effects disabled."
+    else
+        echo "Skipping animation effects disabling."
+    fi
+}
+
 # --- Call functions ---
 restart_finder
 clear_finder_prefs
@@ -491,6 +542,7 @@ free_startup_disk_space # Shifted from 19 to 20
 disable_login_items # Shifted from 20 to 21
 fix_battery_drain # Added new step
 fix_wifi # Added new step
+disable_animations # Added new step
 
 # --- Final Advice ---
 echo -e "\n🏁 System Fix Script Finished! 🏁"
