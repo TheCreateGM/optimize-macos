@@ -1,27 +1,38 @@
 # OptimacOS - macOS System Optimization Script
 
-A comprehensive shell script designed to fix common macOS issues including Finder crashes, app launch problems, system slowdowns, and startup disk space issues.
+A comprehensive shell script designed to fix common macOS issues including Finder crashes, app launch problems, system slowdowns, and startup disk space issues. It also provides advanced system optimization, memory management, and bulk user creation functionality.
 
 ## 🚀 Features
 
-This script provides 28 different system optimization and repair operations:
+This script provides 33 different system optimization and repair operations:
 
 ### Core System Fixes
 - **Finder Issues**: Restart Finder, clear preferences, and fix unresponsive behavior
 - **App Launch Problems**: Reset Launch Services database and clear quarantine attributes
 - **System Performance**: Clear caches, purge memory, and run maintenance scripts
 - **Storage Management**: Free up startup disk space and identify large files
+- **System Optimization**: Advanced kernel parameter optimization for better performance
+- **Memory Optimization**: Enhanced memory management and pressure control
+- **SSD Optimization**: Special settings for solid-state drives including TRIM
+- **Security Settings**: Firewall configuration and stealth mode activation
 
 ### Performance Optimization
 - **Animation Disabling**: Remove all UI animations for faster system responsiveness
 - **Visual Effects Reduction**: Minimize transparency and effects for better performance
 - **Memory Management**: Purge inactive memory and optimize system resources
+- **Kernel Parameter Tuning**: Optimize connection limits, file descriptors, and process thresholds
 
 ### Advanced Diagnostics
 - **Crash Detection**: Analyze system logs for application crashes
 - **Disk Health**: Verify startup disk integrity and repair permissions
 - **Network Issues**: Fix Wi-Fi connectivity problems and flush DNS cache
 - **Battery Optimization**: Diagnose and optimize battery performance
+
+### User Management
+- **Bulk User Creation**: Create multiple users with customizable settings
+- **User Preferences**: Configure user defaults and skip setup assistants
+- **Spotlight Control**: Enable/disable Spotlight indexing for specific users
+- **Security Options**: Optional sudo access and password management
 
 ## 📋 Requirements
 
@@ -43,16 +54,29 @@ This script provides 28 different system optimization and repair operations:
 
 ## 🏃 Usage
 
-Run the script from Terminal:
+Run the script from Terminal with various execution modes:
 
 ```bash
-./optimacos.sh
+./optimacos.sh [options]
 ```
 
+### Command Line Options
+- `--all`: Run all optimizations without prompting
+- `--verbose`: Show detailed command output
+- `--quiet`: Minimize output messages
+- `--yes`: Default to 'yes' for all prompts
+- `--help`, `-h`: Show help message
+
+### Execution Modes
+The script offers three execution modes:
+1. **Run All Functions**: Automatically run all optimization functions
+2. **Run Selected Categories**: Choose which categories of optimizations to run
+3. **Run Individual Functions**: Select specific functions to execute
+
 ### Interactive Mode
-The script runs in interactive mode, asking for confirmation before each operation. You can:
+The script runs in interactive mode by default, asking for confirmation before each operation. You can:
 - Choose which fixes to apply by answering `y` (yes) or `n` (no)
-- Press Enter to default to "no" for any operation
+- Press Enter to default to "no" for any operation (or "yes" if using `--yes`)
 - Exit at any time with `Ctrl+C`
 
 ### Before Running
@@ -90,6 +114,11 @@ The script runs in interactive mode, asking for confirmation before each operati
 | 26 | Disable All Animations | Removes UI animations for better performance |
 | 27 | Reduce Visual Effects | Minimizes transparency and effects |
 | 28 | Keep Software Updated | Checks for and installs macOS updates |
+| 29 | Bulk User Creation | Creates multiple user accounts with custom settings |
+| 30 | System Performance Optimization | Optimizes kernel parameters for better performance |
+| 31 | Memory Management Optimization | Enhanced memory management and pressure control |
+| 32 | SSD Optimization | Configures settings optimized for SSD drives |
+| 33 | Security Settings Optimization | Configures firewall and security settings |
 
 ## ⚙️ Configuration
 
@@ -98,6 +127,10 @@ You can modify these variables at the top of the script:
 ```bash
 LOG_RETENTION_DAYS=7     # How many days of logs to keep
 LARGE_FILE_SIZE_GB=1     # Size threshold for "large" files
+DEFAULT_YES=false        # Set to true for default "yes" in prompts
+VERBOSE=true             # Set to false to reduce output verbosity
+RUN_ALL=false            # Set to true to run all tasks without prompting
+SCRIPT_VERSION="1.0.0"   # Version of this script
 ```
 
 ## 🛡️ Safety Features
@@ -106,14 +139,18 @@ LARGE_FILE_SIZE_GB=1     # Size threshold for "large" files
 - **Non-destructive**: Most operations clear caches and temporary files
 - **Backup recommendations**: Script advises creating backups before major changes
 - **Graceful handling**: Continues even if individual operations fail
+- **Error reporting**: Detailed status reporting for each operation
+- **Initial system checks**: Verifies disk space before operations
+- **OS version detection**: Ensures compatibility with your macOS version
 
 ## 📝 Generated Files
 
 The script may create diagnostic files on your Desktop:
-- `app_crash_log_check.txt` - Recent application crash logs
-- `finder_log_check.txt` - Finder-specific error logs
+- `app_crash_log_check_TIMESTAMP.txt` - Recent application crash logs
+- `finder_log_check_TIMESTAMP.txt` - Finder-specific error logs
+- Temporary files in system temp directories for operation processing
 
-These files are automatically removed if no issues are found.
+These files are automatically removed if no issues are found or when operations complete.
 
 ## 🔄 What Gets Cleared/Reset
 
@@ -159,6 +196,9 @@ If you encounter issues:
 1. **Permission Denied**: Ensure you have administrator privileges
 2. **Script Won't Run**: Check file permissions with `ls -la optimacos.sh`
 3. **Operations Fail**: Some operations may fail on newer macOS versions due to system restrictions
+4. **Verbose Mode**: Run with `--verbose` to see detailed command output for debugging
+5. **Individual Functions**: Run specific functions using execution mode 3 to isolate issues
+6. **Command Timeouts**: Some operations may time out on slower systems - increase timeout values in script if needed
 
 ## 🔍 Common Issues Fixed
 
@@ -193,6 +233,10 @@ The script includes several performance-focused optimizations:
 - **Memory Optimization**: Purges inactive memory and reduces background processes
 - **Battery Management**: Configures power settings for optimal battery life
 - **Login Optimization**: Guides users to disable unnecessary startup items
+- **Kernel Parameter Tuning**: Optimizes system connection limits and resource allocations
+- **SSD-Specific Optimizations**: Special settings for solid state drives
+- **Security Hardening**: Optimizes firewall and security settings
+- **System-wide Performance**: Increases system resource limits and connection pools
 
 ## 📄 License
 
@@ -202,8 +246,21 @@ This script is provided as-is for educational and personal use. Use at your own 
 
 Feel free to submit issues, feature requests, or improvements to make this script better for the macOS community.
 
+## 🧑‍💻 Bulk User Creation
+
+The script includes a powerful bulk user creation functionality (Section 29) that allows:
+
+- Creating multiple user accounts with sequential UIDs
+- Customizing user shell, group ID, and home directories
+- Setting user preferences and skipping setup assistants
+- Enabling/disabling Spotlight for new users
+- Setting passwords and sudo access (with security warnings)
+- Creating home directories with proper permissions
+
+This is particularly useful for setting up lab environments, testing, or when preparing multiple workstations.
+
 ---
 
-**Version**: 2.0
+**Version**: 3.0
 **Last Updated**: 2025
-**Compatibility**: macOS 10.15+
+**Compatibility**: macOS 10.15+, 11.x, 12.x, 13.x
