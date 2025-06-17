@@ -238,14 +238,6 @@ The script includes several performance-focused optimizations:
 - **Security Hardening**: Optimizes firewall and security settings
 - **System-wide Performance**: Increases system resource limits and connection pools
 
-## 📄 License
-
-This script is provided as-is for educational and personal use. Use at your own risk and always backup your data before running system maintenance scripts.
-
-## 🤝 Contributing
-
-Feel free to submit issues, feature requests, or improvements to make this script better for the macOS community.
-
 ## 🧑‍💻 Bulk User Creation
 
 The script includes a powerful bulk user creation functionality (Section 29) that allows:
@@ -258,6 +250,14 @@ The script includes a powerful bulk user creation functionality (Section 29) tha
 - Creating home directories with proper permissions
 
 This is particularly useful for setting up lab environments, testing, or when preparing multiple workstations.
+
+## 📄 License
+
+This script is provided as-is for educational and personal use. Use at your own risk and always backup your data before running system maintenance scripts.
+
+## 🤝 Contributing
+
+Feel free to submit issues, feature requests, or improvements to make this script better for the macOS community.
 
 ---
 
