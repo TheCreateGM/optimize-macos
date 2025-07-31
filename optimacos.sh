@@ -766,49 +766,167 @@ fix_wifi() {
 disable_animations() {
     echo -e "\n⚡ Section 26: Disabling All Animation Effects"
     echo "---------------------------------------------"
-    if ask_yes_no "Disable most macOS animation effects for better performance?"; then # Changed wording slightly
-        echo "Disabling most animation effects..."
+    if ask_yes_no "Disable all macOS animation effects for maximum performance?"; then
+        echo "Disabling all animation effects..."
 
-        # Disable Dock animations
+        # === DOCK ANIMATIONS ===
+        # Disable Dock auto-hide animations
         defaults write com.apple.dock autohide-time-modifier -float 0
         defaults write com.apple.dock autohide-delay -float 0
-        defaults write com.apple.dock expose-animation-duration -float 0.1
+        
+        # Disable Dock launch animations
         defaults write com.apple.dock launchanim -bool false
-
-        # Disable Mission Control animations (using the same key as expose)
+        
+        # Disable Mission Control and Exposé animations
         defaults write com.apple.dock expose-animation-duration -float 0.1
+        defaults write com.apple.dock workspaces-swoosh-animation-off -bool true
+        
+        # Disable Dock magnification animation
+        defaults write com.apple.dock magnification -bool false
+        
+        # Disable Dock bounce effect for applications
+        defaults write com.apple.dock no-bouncing -bool true
 
+        # === WINDOW ANIMATIONS ===
         # Disable opening and closing window animations
         defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
-
-        # Disable smooth scrolling (can sometimes impact performance)
-        defaults write NSGlobalDomain NSScrollAnimationEnabled -bool false
-
-        # Disable menu bar animations (part of general UI animation)
-        defaults write NSGlobalDomain NSScrollViewRubberbanding -bool false # This is more about scroll rubberbanding, not specific menu bar animation
-
-        # Disable window resize animation
+        
+        # Disable window resize animations
         defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
+        
+        # Disable minimize/maximize window animations
+        defaults write com.apple.dock mineffect -string "scale"
+        defaults write NSGlobalDomain NSDocumentRevisionsWindowTransformAnimation -bool false
+        
+        # Disable window zoom animations
+        defaults write NSGlobalDomain NSWindowZoomTime -float 0.001
 
-        # Disable Finder animations (already included)
+        # === FINDER ANIMATIONS ===
+        # Disable all Finder animations
         defaults write com.apple.finder DisableAllAnimations -bool true
+        
+        # Disable Finder window animations
+        defaults write com.apple.finder AnimateWindowZoom -bool false
+        
+        # Disable Finder info window animations
+        defaults write com.apple.finder AnimateInfoPanes -bool false
 
-        # Disable animations when opening Quick Look windows
+        # === QUICK LOOK ANIMATIONS ===
+        # Disable Quick Look window animations
         defaults write -g QLPanelAnimationDuration -float 0
+        defaults write com.apple.finder QLEnableSlowMotion -bool false
 
-        # Disable animations when opening applications (part of Dock launchanim)
-        defaults write com.apple.dock springboard-show-duration -float 0 # Springboard keys less relevant
-        defaults write com.apple.dock springboard-hide-duration -float 0 # Springboard keys less relevant
+        # === SCROLLING ANIMATIONS ===
+        # Disable smooth scrolling
+        defaults write NSGlobalDomain NSScrollAnimationEnabled -bool false
+        
+        # Disable rubber band scrolling
+        defaults write NSGlobalDomain NSScrollViewRubberbanding -bool false
+        
+        # Disable momentum scrolling
+        defaults write NSGlobalDomain AppleScrollerPagingBehavior -bool true
 
-        # Disable transparency and reduce motion (Accessibility settings, can improve performance on older Macs)
+        # === MENU AND UI ANIMATIONS ===
+        # Disable menu bar transparency animation
+        defaults write NSGlobalDomain AppleEnableMenuBarTransparency -bool false
+        
+        # Disable popup menu animations
+        defaults write NSGlobalDomain NSMenuBarAnimationDuration -float 0
+        
+        # Disable toolbar animations
+        defaults write NSGlobalDomain NSToolbarFullScreenAnimationDuration -float 0
+
+        # === ACCESSIBILITY SETTINGS FOR REDUCED MOTION ===
+        # Enable reduce motion (disables many system animations)
         defaults write com.apple.universalaccess reduceMotion -bool true
+        
+        # Enable reduce transparency
         defaults write com.apple.universalaccess reduceTransparency -bool true
+        
+        # Disable differentiate without color animations
+        defaults write com.apple.universalaccess differentiateWithoutColor -bool true
 
-        # Restart affected applications for changes to take effect
-        killall Dock 2>/dev/null
-        killall Finder 2>/dev/null
+        # === SAFARI ANIMATIONS ===
+        # Disable Safari tab animations
+        defaults write com.apple.Safari WebKitTabToLinksPreferenceKey -bool false
+        defaults write com.apple.Safari com.apple.Safari.ContentPageGroupIdentifier.WebKit2TabsToLinks -bool false
 
-        echo "✅ Most animation and visual effects disabled."
+        # === MAIL ANIMATIONS ===
+        # Disable Mail animations
+        defaults write com.apple.mail DisableReplyAnimations -bool true
+        defaults write com.apple.mail DisableSendAnimations -bool true
+
+        # === SYSTEM PREFERENCES ANIMATIONS ===
+        # Disable System Preferences animations
+        defaults write com.apple.systempreferences NSWindowResizeTime -float 0.001
+
+        # === SPOTLIGHT ANIMATIONS ===
+        # Disable Spotlight search animations
+        defaults write com.apple.spotlight orderedItems -array \
+            '{"enabled" = 1;"name" = "APPLICATIONS";}' \
+            '{"enabled" = 1;"name" = "SYSTEM_PREFS";}' \
+            '{"enabled" = 1;"name" = "DIRECTORIES";}' \
+            '{"enabled" = 1;"name" = "PDF";}' \
+            '{"enabled" = 1;"name" = "FONTS";}' \
+            '{"enabled" = 0;"name" = "DOCUMENTS";}' \
+            '{"enabled" = 0;"name" = "MESSAGES";}' \
+            '{"enabled" = 0;"name" = "CONTACT";}' \
+            '{"enabled" = 0;"name" = "EVENT_TODO";}' \
+            '{"enabled" = 0;"name" = "IMAGES";}' \
+            '{"enabled" = 0;"name" = "BOOKMARKS";}' \
+            '{"enabled" = 0;"name" = "MUSIC";}' \
+            '{"enabled" = 0;"name" = "MOVIES";}' \
+            '{"enabled" = 0;"name" = "PRESENTATIONS";}' \
+            '{"enabled" = 0;"name" = "SPREADSHEETS";}' \
+            '{"enabled" = 0;"name" = "SOURCE";}' \
+            '{"enabled" = 0;"name" = "MENU_DEFINITION";}' \
+            '{"enabled" = 0;"name" = "MENU_OTHER";}' \
+            '{"enabled" = 0;"name" = "MENU_CONVERSION";}' \
+            '{"enabled" = 0;"name" = "MENU_EXPRESSION";}' \
+            '{"enabled" = 0;"name" = "MENU_WEBSEARCH";}' \
+            '{"enabled" = 0;"name" = "MENU_SPOTLIGHT_SUGGESTIONS";}'
+
+        # === NOTIFICATION CENTER ANIMATIONS ===
+        # Disable Notification Center animations
+        defaults write com.apple.notificationcenterui bannerTime -float 0.5
+
+        # === LAUNCHPAD ANIMATIONS ===
+        # Disable Launchpad animations
+        defaults write com.apple.dock springboard-show-duration -float 0
+        defaults write com.apple.dock springboard-hide-duration -float 0
+        defaults write com.apple.dock springboard-page-duration -float 0
+
+        # === DASHBOARD ANIMATIONS ===
+        # Disable Dashboard
+        defaults write com.apple.dashboard mcx-disabled -bool true
+
+        # === SCREEN SAVER ANIMATIONS ===
+        # Disable screen saver fade animations
+        defaults write com.apple.screensaver askForPassword -int 1
+        defaults write com.apple.screensaver askForPasswordDelay -int 0
+
+        # === ADDITIONAL PERFORMANCE TWEAKS ===
+        # Disable window shadows (can improve performance)
+        defaults write NSGlobalDomain AppleWindowShadow -bool false
+        
+        # Disable icon animations in Launchpad
+        defaults write com.apple.dock ResetLaunchPad -bool true
+        
+        # Disable the over-the-top focus ring animation
+        defaults write NSGlobalDomain NSUseAnimatedFocusRing -bool false
+        
+        # Disable the animation when you open an application from the Dock
+        defaults write com.apple.dock enable-spring-load-actions-on-all-items -bool false
+
+        # === RESTART AFFECTED APPLICATIONS ===
+        echo "Restarting affected applications..."
+        killall Dock 2>/dev/null || true
+        killall Finder 2>/dev/null || true
+        killall SystemUIServer 2>/dev/null || true
+        killall NotificationCenter 2>/dev/null || true
+
+        echo "✅ All animation effects have been disabled for maximum performance."
+        echo "Note: Some changes may require a logout/login or system restart to take full effect."
     else
         echo "Skipping animation effects disabling."
     fi
