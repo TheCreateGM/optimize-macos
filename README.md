@@ -264,3 +264,5 @@ Feel free to submit issues, feature requests, or improvements to make this scrip
 **Version**: 3.0
 **Last Updated**: 2025
 **Compatibility**: macOS 10.15+, 11.x, 12.x, 13.x
+
+there is ricing for people who want to try it
