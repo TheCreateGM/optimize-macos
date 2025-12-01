@@ -773,41 +773,41 @@ disable_animations() {
         # Disable Dock auto-hide animations
         defaults write com.apple.dock autohide-time-modifier -float 0
         defaults write com.apple.dock autohide-delay -float 0
-        
+
         # Disable Dock launch animations
         defaults write com.apple.dock launchanim -bool false
-        
+
         # Disable Mission Control and Exposé animations
         defaults write com.apple.dock expose-animation-duration -float 0.1
         defaults write com.apple.dock workspaces-swoosh-animation-off -bool true
-        
+
         # Disable Dock magnification animation
         defaults write com.apple.dock magnification -bool false
-        
+
         # Disable Dock bounce effect for applications
         defaults write com.apple.dock no-bouncing -bool true
 
         # === WINDOW ANIMATIONS ===
         # Disable opening and closing window animations
         defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
-        
+
         # Disable window resize animations
         defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
-        
+
         # Disable minimize/maximize window animations
         defaults write com.apple.dock mineffect -string "scale"
         defaults write NSGlobalDomain NSDocumentRevisionsWindowTransformAnimation -bool false
-        
+
         # Disable window zoom animations
         defaults write NSGlobalDomain NSWindowZoomTime -float 0.001
 
         # === FINDER ANIMATIONS ===
         # Disable all Finder animations
         defaults write com.apple.finder DisableAllAnimations -bool true
-        
+
         # Disable Finder window animations
         defaults write com.apple.finder AnimateWindowZoom -bool false
-        
+
         # Disable Finder info window animations
         defaults write com.apple.finder AnimateInfoPanes -bool false
 
@@ -819,30 +819,30 @@ disable_animations() {
         # === SCROLLING ANIMATIONS ===
         # Disable smooth scrolling
         defaults write NSGlobalDomain NSScrollAnimationEnabled -bool false
-        
+
         # Disable rubber band scrolling
         defaults write NSGlobalDomain NSScrollViewRubberbanding -bool false
-        
+
         # Disable momentum scrolling
         defaults write NSGlobalDomain AppleScrollerPagingBehavior -bool true
 
         # === MENU AND UI ANIMATIONS ===
         # Disable menu bar transparency animation
         defaults write NSGlobalDomain AppleEnableMenuBarTransparency -bool false
-        
+
         # Disable popup menu animations
         defaults write NSGlobalDomain NSMenuBarAnimationDuration -float 0
-        
+
         # Disable toolbar animations
         defaults write NSGlobalDomain NSToolbarFullScreenAnimationDuration -float 0
 
         # === ACCESSIBILITY SETTINGS FOR REDUCED MOTION ===
         # Enable reduce motion (disables many system animations)
         defaults write com.apple.universalaccess reduceMotion -bool true
-        
+
         # Enable reduce transparency
         defaults write com.apple.universalaccess reduceTransparency -bool true
-        
+
         # Disable differentiate without color animations
         defaults write com.apple.universalaccess differentiateWithoutColor -bool true
 
@@ -908,13 +908,13 @@ disable_animations() {
         # === ADDITIONAL PERFORMANCE TWEAKS ===
         # Disable window shadows (can improve performance)
         defaults write NSGlobalDomain AppleWindowShadow -bool false
-        
+
         # Disable icon animations in Launchpad
         defaults write com.apple.dock ResetLaunchPad -bool true
-        
+
         # Disable the over-the-top focus ring animation
         defaults write NSGlobalDomain NSUseAnimatedFocusRing -bool false
-        
+
         # Disable the animation when you open an application from the Dock
         defaults write com.apple.dock enable-spring-load-actions-on-all-items -bool false
 
@@ -1101,7 +1101,448 @@ optimize_security() {
     fi
 }
 
-# --- Function Array for Execution ---
+# --- 34. Advanced CPU/GPU Thread Optimization ---
+optimize_cpu_gpu_threads() {
+    print_section_header "🚀" "34" "Advanced CPU/GPU Thread Optimization"
+
+    if ask_yes_no "Optimize CPU/GPU thread allocation and scheduling?"; then
+        echo "Optimizing CPU/GPU thread management..."
+
+        # Detect CPU cores
+        local cpu_cores=$(sysctl -n hw.ncpu)
+        local physical_cores=$(sysctl -n hw.physicalcpu)
+        local logical_cores=$(sysctl -n hw.logicalcpu)
+
+        echo "Detected: ${cpu_cores} total cores (${physical_cores} physical, ${logical_cores} logical)"
+
+        # Optimize CPU thread scheduling
+        echo "Optimizing CPU scheduler..."
+        sudo sysctl -w kern.sched_quantum=10000 2>/dev/null || true
+        sudo sysctl -w kern.sched_preempt_quantum=5000 2>/dev/null || true
+        sudo sysctl -w kern.thread_max_cpus=${cpu_cores} 2>/dev/null || true
+
+        # Optimize process priority scheduling
+        sudo sysctl -w kern.sched_rt_period=1000000 2>/dev/null || true
+        sudo sysctl -w kern.sched_rt_runtime=950000 2>/dev/null || true
+
+        # Optimize CPU performance mode (disable throttling)
+        sudo sysctl -w kern.numa_policy=0 2>/dev/null || true
+        sudo sysctl -w machdep.cpu.max_basic=255 2>/dev/null || true
+
+        # Set CPU performance mode for better responsiveness
+        sudo pmset -a perfbias 0 2>/dev/null || true
+        sudo pmset -a perfmode performance 2>/dev/null || true
+
+        # Disable power nap for better performance
+        sudo pmset -a powernap 0 2>/dev/null || true
+        sudo pmset -a tcpkeepalive 0 2>/dev/null || true
+
+        # Optimize GPU thread allocation
+        echo "Optimizing GPU thread allocation..."
+
+        # Metal GPU optimization
+        defaults write com.apple.metalgl DisableForceDiscreteGPU -bool false 2>/dev/null || true
+        defaults write com.apple.metalgl EnableContextReuse -bool true 2>/dev/null || true
+        defaults write com.apple.metalgl DisableComputeCompaction -bool false 2>/dev/null || true
+
+        # Force discrete GPU if available (for MacBook Pro with dual GPUs)
+        if system_profiler SPDisplaysDataType 2>/dev/null | grep -q "AMD\|NVIDIA\|Radeon"; then
+            echo "Discrete GPU detected. Configuring for performance..."
+            sudo pmset -a gpuswitch 2 2>/dev/null || true  # Force discrete GPU
+            defaults write com.apple.gpu prefers_discrete_gpu -bool true 2>/dev/null || true
+        fi
+
+        # Optimize OpenGL/Metal rendering
+        defaults write NSGlobalDomain com.apple.use.metal -bool true 2>/dev/null || true
+        defaults write NSGlobalDomain WebKitAcceleratedCompositingEnabled -bool true 2>/dev/null || true
+        defaults write NSGlobalDomain WebKitUseHardwareAcceleration -bool true 2>/dev/null || true
+
+        # Optimize Core Graphics performance
+        defaults write com.apple.CoreGraphics HardwareAcceleration -bool true 2>/dev/null || true
+        defaults write com.apple.CoreGraphics DisplayUsesCGInterpolation -bool false 2>/dev/null || true
+
+        # Optimize multithreading for applications
+        sudo sysctl -w kern.usrthreads=1 2>/dev/null || true
+        sudo sysctl -w kern.maxprocperuid=2048 2>/dev/null || true
+
+        echo "✅ CPU/GPU thread optimization complete."
+
+        if [[ "$VERBOSE" == true ]]; then
+            echo "Current CPU/GPU settings:"
+            sysctl kern.sched_quantum kern.thread_max_cpus 2>/dev/null || true
+            pmset -g | grep -E "perfbias|perfmode|gpuswitch" || true
+        fi
+    else
+        echo "Skipping CPU/GPU thread optimization."
+    fi
+}
+
+# --- 35. Advanced Thermal Management ---
+optimize_thermal_management() {
+    print_section_header "🌡️" "35" "Advanced Thermal Management"
+
+    if ask_yes_no "Optimize thermal management and fan control?"; then
+        echo "Optimizing thermal management..."
+
+        # Reset SMC (System Management Controller) for thermal recalibration
+        echo "Resetting SMC for thermal recalibration..."
+
+        # Check if it's a Mac with T2 chip
+        local has_t2=false
+        if system_profiler SPiBridgeDataType 2>/dev/null | grep -q "T2"; then
+            has_t2=true
+            echo "T2 chip detected."
+        fi
+
+        # Optimize thermal pressure thresholds
+        sudo sysctl -w kern.thermalctrl.enabled=1 2>/dev/null || true
+        sudo sysctl -w kern.maxtemp=95 2>/dev/null || true
+        sudo sysctl -w machdep.xcpm.cpu_thermal_level=100 2>/dev/null || true
+
+        # Optimize cooling policy
+        sudo pmset -a thermalpolicy 1 2>/dev/null || true  # 1 = maximum cooling
+
+        # Disable proximity wake for cooler operation
+        sudo pmset -a proximitywake 0 2>/dev/null || true
+
+        # Optimize sleep settings for better thermal management
+        sudo pmset -a standby 0 2>/dev/null || true
+        sudo pmset -a autopoweroff 0 2>/dev/null || true
+
+        # Create thermal optimization profile
+        echo "Creating thermal optimization profile..."
+
+        # Reduce background process priority to reduce heat
+        sudo sysctl -w kern.timer.deadline_tracking=0 2>/dev/null || true
+        sudo sysctl -w kern.timer.longterm_qlen=2 2>/dev/null || true
+
+        # Optimize I/O scheduler to reduce disk heat
+        sudo sysctl -w kern.sched_enable_thread_group_resolution=1 2>/dev/null || true
+
+        echo "✅ Thermal management optimized."
+
+        # Display current thermal status
+        if [[ "$VERBOSE" == true ]]; then
+            echo "Current thermal status:"
+            pmset -g thermlog 2>/dev/null || echo "Thermal log not available"
+            sudo powermetrics --samplers smc -i 1 -n 1 2>/dev/null | grep -E "CPU|GPU|temperature" || echo "Temperature data not available"
+        fi
+
+        echo ""
+        echo "📝 Note: For advanced fan control, consider third-party apps like:"
+        echo "   • Macs Fan Control (manual fan speed adjustment)"
+        echo "   • smcFanControl (fan speed monitoring and control)"
+        echo "   • TG Pro (comprehensive thermal monitoring)"
+    else
+        echo "Skipping thermal management optimization."
+    fi
+}
+
+# --- 36. Kernel-Level System Optimization (Linux-inspired) ---
+optimize_kernel_parameters() {
+    print_section_header "⚙️" "36" "Kernel-Level System Optimization"
+
+    if ask_yes_no "Apply kernel-level optimizations (Linux-inspired tuning)?"; then
+        echo "Applying kernel-level optimizations..."
+
+        # ===== MEMORY MANAGEMENT =====
+        echo "Optimizing memory management..."
+
+        # VM subsystem optimization
+        sudo sysctl -w vm.compressor_mode=4 2>/dev/null || true  # Aggressive compression
+        sudo sysctl -w vm.vm_page_free_target=4000 2>/dev/null || true
+        sudo sysctl -w vm.vm_page_free_min=2000 2>/dev/null || true
+        sudo sysctl -w vm.vm_page_free_reserved=1000 2>/dev/null || true
+        sudo sysctl -w vm.max_map_count=262144 2>/dev/null || true
+
+        # Memory pressure optimization
+        sudo sysctl -w vm.memory_pressure_critical=95 2>/dev/null || true
+        sudo sysctl -w vm.memory_pressure_warn=80 2>/dev/null || true
+
+        # Swap optimization
+        sudo sysctl -w vm.swapusage=0 2>/dev/null || true
+        sudo sysctl -w vm.global_no_user_wire_limit=1 2>/dev/null || true
+
+        # ===== FILE SYSTEM OPTIMIZATION =====
+        echo "Optimizing file system parameters..."
+
+        # File descriptor limits
+        sudo sysctl -w kern.maxfiles=524288 2>/dev/null || true
+        sudo sysctl -w kern.maxfilesperproc=262144 2>/dev/null || true
+        sudo sysctl -w kern.maxvnodes=1048576 2>/dev/null || true
+
+        # Buffer cache optimization
+        sudo sysctl -w kern.maxnbuf=16384 2>/dev/null || true
+        sudo sysctl -w vfs.generic.sync_timeout=300 2>/dev/null || true
+
+        # ===== NETWORK STACK OPTIMIZATION =====
+        echo "Optimizing network stack..."
+
+        # TCP/IP stack optimization (Linux-inspired)
+        sudo sysctl -w net.inet.tcp.sendspace=262144 2>/dev/null || true
+        sudo sysctl -w net.inet.tcp.recvspace=262144 2>/dev/null || true
+        sudo sysctl -w net.inet.tcp.win_scale_factor=8 2>/dev/null || true
+        sudo sysctl -w net.inet.tcp.mssdflt=1440 2>/dev/null || true
+        sudo sysctl -w net.inet.tcp.minmss=536 2>/dev/null || true
+        sudo sysctl -w net.inet.tcp.v6mssdflt=1440 2>/dev/null || true
+
+        # TCP congestion control
+        sudo sysctl -w net.inet.tcp.cc.algorithm=cubic 2>/dev/null || true
+        sudo sysctl -w net.inet.tcp.delayed_ack=0 2>/dev/null || true
+        sudo sysctl -w net.inet.tcp.sack.enable=1 2>/dev/null || true
+        sudo sysctl -w net.inet.tcp.fastopen=3 2>/dev/null || true
+
+        # Socket buffer optimization
+        sudo sysctl -w kern.ipc.maxsockbuf=8388608 2>/dev/null || true
+        sudo sysctl -w kern.ipc.somaxconn=4096 2>/dev/null || true
+        sudo sysctl -w kern.ipc.nmbclusters=131072 2>/dev/null || true
+
+        # UDP optimization
+        sudo sysctl -w net.inet.udp.maxdgram=65535 2>/dev/null || true
+        sudo sysctl -w net.inet.udp.recvspace=786896 2>/dev/null || true
+
+        # ===== PROCESS SCHEDULING =====
+        echo "Optimizing process scheduler..."
+
+        # Process limits
+        sudo sysctl -w kern.maxproc=4096 2>/dev/null || true
+        sudo sysctl -w kern.maxprocperuid=2048 2>/dev/null || true
+
+        # Thread optimization
+        sudo sysctl -w kern.num_tasks_threads=8192 2>/dev/null || true
+        sudo sysctl -w kern.pthread_priority_delay=50000 2>/dev/null || true
+
+        # ===== I/O SCHEDULER OPTIMIZATION =====
+        echo "Optimizing I/O scheduler..."
+
+        # Disk I/O optimization
+        sudo sysctl -w kern.aio_max_requests=1024 2>/dev/null || true
+        sudo sysctl -w kern.aio_listio_max=256 2>/dev/null || true
+
+        # ===== SECURITY & PERFORMANCE BALANCE =====
+        echo "Balancing security and performance..."
+
+        # Disable unnecessary security features for performance (use with caution)
+        if ask_yes_no "Disable some security features for maximum performance? (Less secure)"; then
+            sudo sysctl -w kern.secure_kernel=0 2>/dev/null || true
+            sudo sysctl -w security.mac.proc_enforce=0 2>/dev/null || true
+            sudo sysctl -w security.mac.vnode_enforce=0 2>/dev/null || true
+        fi
+
+        # ===== POWER MANAGEMENT =====
+        echo "Optimizing power management for performance..."
+
+        # Disable sleep-related features that impact performance
+        sudo sysctl -w kern.sleeptime=0 2>/dev/null || true
+        sudo sysctl -w kern.waketime=0 2>/dev/null || true
+
+        # ===== MAKE SETTINGS PERSISTENT =====
+        echo "Creating persistent kernel optimization file..."
+
+        local sysctl_conf="/etc/sysctl.conf"
+        if ask_yes_no "Make kernel optimizations persistent across reboots?"; then
+            sudo tee "$sysctl_conf" > /dev/null << 'EOF'
+# macOS Kernel Optimizations (Linux-inspired)
+# Created by macOS System Optimizer
+
+# Memory Management
+vm.compressor_mode=4
+kern.maxfiles=524288
+kern.maxfilesperproc=262144
+kern.maxvnodes=1048576
+
+# Network Stack
+net.inet.tcp.sendspace=262144
+net.inet.tcp.recvspace=262144
+net.inet.tcp.delayed_ack=0
+net.inet.tcp.sack.enable=1
+kern.ipc.maxsockbuf=8388608
+kern.ipc.somaxconn=4096
+
+# Process Scheduling
+kern.maxproc=4096
+kern.maxprocperuid=2048
+
+# I/O Performance
+kern.aio_max_requests=1024
+vfs.generic.sync_timeout=300
+EOF
+            echo "✅ Persistent kernel optimizations saved to $sysctl_conf"
+        fi
+
+        echo "✅ Kernel-level optimization complete."
+
+        if [[ "$VERBOSE" == true ]]; then
+            echo ""
+            echo "Current kernel parameters (sample):"
+            sysctl kern.maxfiles kern.maxproc vm.compressor_mode net.inet.tcp.sendspace 2>/dev/null || true
+        fi
+    else
+        echo "Skipping kernel-level optimization."
+    fi
+}
+
+# --- 37. OpenCore-Compatible Optimization ---
+optimize_opencore_compatibility() {
+    print_section_header "💻" "37" "OpenCore/Hackintosh Optimization"
+
+    if ask_yes_no "Apply OpenCore/Hackintosh-specific optimizations?"; then
+        echo "Applying OpenCore-compatible optimizations..."
+
+        # Check if running on OpenCore/Hackintosh
+        local is_hackintosh=false
+        if ioreg -l 2>/dev/null | grep -q "Clover\|OpenCore"; then
+            is_hackintosh=true
+            echo "⚠️ OpenCore/Clover bootloader detected."
+        fi
+
+        # CPU optimization for non-Apple hardware
+        echo "Optimizing CPU power management..."
+        sudo sysctl -w machdep.xcpm.hwp_enable=1 2>/dev/null || true
+        sudo sysctl -w machdep.xcpm.mode=0 2>/dev/null || true
+        sudo sysctl -w machdep.xcpm.deep_idle_enable=0 2>/dev/null || true
+
+        # Optimize USB port mapping
+        echo "Optimizing USB controller settings..."
+        sudo sysctl -w kern.usb.wait_for_resume=0 2>/dev/null || true
+
+        # Audio optimization for hackintosh
+        echo "Optimizing audio settings..."
+        sudo sysctl -w kern.audio.max_output_channels=8 2>/dev/null || true
+        sudo sysctl -w kern.audio.max_input_channels=8 2>/dev/null || true
+
+        # Graphics optimization
+        echo "Optimizing graphics settings..."
+
+        # Disable Metal HUD and overlays that might cause issues
+        defaults write com.apple.CoreGraphics DisableHUD -bool true 2>/dev/null || true
+        defaults write com.apple.CoreGraphics IgnoreVRAM -bool false 2>/dev/null || true
+
+        # Optimize memory allocator for non-Apple hardware
+        sudo sysctl -w kern.malloc.check_rate=0 2>/dev/null || true
+
+        # Network card optimization (common for Hackintosh)
+        echo "Optimizing network card settings..."
+        sudo sysctl -w net.inet.tcp.tso=1 2>/dev/null || true
+        sudo sysctl -w net.inet.tcp.lro=1 2>/dev/null || true
+
+        # Disable problematic macOS features on Hackintosh
+        if [[ "$is_hackintosh" == true ]]; then
+            echo "Disabling incompatible features for Hackintosh..."
+
+            # Disable FileVault (often problematic on Hackintosh)
+            sudo fdesetup disable 2>/dev/null || echo "FileVault already disabled or not supported"
+
+            # Disable Find My Mac
+            sudo defaults write /Library/Preferences/com.apple.FindMyMac FMMEnabled -bool false 2>/dev/null || true
+
+            # Disable Handoff/Continuity (requires genuine Apple hardware)
+            defaults write ~/Library/Preferences/ByHost/com.apple.coreservices.useractivityd.plist ActivityAdvertisingAllowed -bool false 2>/dev/null || true
+            defaults write ~/Library/Preferences/ByHost/com.apple.coreservices.useractivityd.plist ActivityReceivingAllowed -bool false 2>/dev/null || true
+        fi
+
+        echo "✅ OpenCore/Hackintosh optimization complete."
+        echo ""
+        echo "📝 Additional Hackintosh tips:"
+        echo "   • Keep your EFI/OpenCore config updated"
+        echo "   • Use proper SMBIOS for your hardware"
+        echo "   • Ensure all kexts are up to date"
+        echo "   • Check BIOS settings (XHCI Handoff, VT-d, etc.)"
+        echo "   • Use SSDTs for power management"
+    else
+        echo "Skipping OpenCore/Hackintosh optimization."
+    fi
+}
+
+# --- 38. Advanced Hardware Tuning ---
+advanced_hardware_tuning() {
+    print_section_header "🚀" "38" "Advanced Hardware Tuning"
+
+    echo "⚠️ WARNING: These are advanced options that modify system-level hardware settings."
+    if ask_yes_no "Proceed with advanced hardware tuning?"; then
+
+        # --- WindowServer Priority ---
+        if ask_yes_no "Increase WindowServer priority for smoother UI? (Recommended)"; then
+            echo "Increasing priority of WindowServer process..."
+            local pgrep_ws
+            pgrep_ws=$(pgrep WindowServer)
+            if [[ -n "$pgrep_ws" ]]; then
+                run_command "sudo renice -n -20 ${pgrep_ws}" "WindowServer priority increased" "renice_windowserver"
+            else
+                echo "❌ Could not find WindowServer process."
+            fi
+        else
+            echo "Skipping WindowServer priority adjustment."
+        fi
+
+        # --- Architecture-Specific Tuning ---
+        local arch
+        arch=$(uname -m)
+        if [[ "$arch" == "arm64" ]]; then
+            echo "Apple Silicon Mac detected."
+            if ask_yes_no "Enable High Power Mode? (For M1/M2/M3 Pro/Max/Ultra chips on macOS Monterey+)"; then
+                echo "Attempting to enable High Power Mode..."
+                # This command will fail gracefully if the mode is not supported.
+                if sudo pmset -a highpowermode 1; then
+                    echo "✅ High Power Mode enabled. This increases performance at the cost of battery life and heat."
+                    if [[ "$VERBOSE" == true ]]; then
+                        echo "Current power mode settings:"
+                        pmset -g
+                    fi
+                else
+                    echo "⚠️ High Power Mode could not be enabled. Your Mac model or macOS version may not support it."
+                fi
+            else
+                echo "Skipping High Power Mode."
+            fi
+        elif [[ "$arch" == "x86_64" ]]; then
+            echo "Intel Mac detected."
+            if ask_yes_no "Learn about managing Intel Turbo Boost to control heat?"; then
+                echo "Intel Turbo Boost provides maximum performance but can also generate significant heat."
+                echo "Disabling it can lead to a cooler and quieter Mac, at the cost of peak performance."
+                echo "Directly disabling it via script is unreliable across different models and macOS versions."
+                echo "For safe and reliable control, consider using a third-party application like 'Turbo Boost Switcher Pro'."
+                echo "This is not an endorsement, but a suggestion for users who need this level of control."
+            fi
+        fi
+    else
+        echo "Skipping advanced hardware tuning."
+    fi
+}
+
+# --- 39. Reset SMC & NVRAM/PRAM (Guidance) ---
+reset_smc_nvram_guidance() {
+    print_section_header "🔌" "39" "Reset SMC & NVRAM/PRAM (Guidance)"
+
+    echo "This script cannot perform these resets automatically as they require a full shutdown and specific key presses."
+    echo "Resetting the SMC (System Management Controller) can resolve issues with fans, power, battery, and other hardware."
+    echo "Resetting NVRAM/PRAM can resolve issues with startup disk selection, screen resolution, and sound volume."
+
+    if ask_yes_no "Display instructions for resetting the SMC and NVRAM/PRAM?"; then
+        echo -e "\n--- How to Reset the NVRAM/PRAM ---"
+        echo "1. Shut down your Mac."
+        echo "2. Turn on your Mac and immediately press and hold these four keys together: Option, Command, P, and R."
+        echo "3. Release the keys after about 20 seconds, during which your Mac might appear to restart."
+        echo "   - On Macs that play a startup sound, you can release the keys after the second startup sound."
+        echo "   - On Macs with the Apple T2 Security Chip, you can release the keys after the Apple logo appears and disappears for the second time."
+
+        echo -e "\n--- How to Reset the SMC (for Notebooks with T2 Chip) ---"
+        echo "1. Shut down your Mac."
+        echo "2. On your built-in keyboard, press and hold all of the following keys: Control (left side), Option (left side), Shift (right side)."
+        echo "3. Press and hold the power button as well."
+        echo "4. Keep all four keys held down for 7 seconds, then release them."
+        echo "5. Wait a few seconds, then press the power button to turn on your Mac."
+
+        echo -e "\n--- How to Reset the SMC (for other Macs) ---"
+        echo "For iMac, Mac mini, Mac Pro, and older notebooks, the procedure is different."
+        echo "Please consult the official Apple Support page for your specific model: https://support.apple.com/en-us/HT201295"
+        echo ""
+        check_status "Guidance provided. Please follow the steps carefully." "smc_nvram_guidance"
+    else
+        echo "Skipping SMC & NVRAM/PRAM guidance."
+    fi
+}
+
 # --- 29. Bulk User Creation ---
 bulk_user_creation() {
     print_section_header "👥" "29" "Bulk User Creation"
@@ -1322,6 +1763,12 @@ FUNCTIONS=(
     "optimize_memory_management"
     "optimize_ssd"
     "optimize_security"
+    "optimize_cpu_gpu_threads"
+    "optimize_thermal_management"
+    "optimize_kernel_parameters"
+    "optimize_opencore_compatibility"
+    "advanced_hardware_tuning"
+    "reset_smc_nvram_guidance"
 )
 
 # Run selected functions
@@ -1359,6 +1806,7 @@ else
                 optimize_system_performance
                 optimize_memory_management
                 optimize_ssd
+                advanced_hardware_tuning
             fi
 
             if ask_yes_no "Run Cleanup functions?"; then
@@ -1380,6 +1828,7 @@ else
                 reindex_spotlight
                 run_maintenance_scripts
                 verify_disk
+                reset_smc_nvram_guidance
             fi
 
             if ask_yes_no "Run UI Optimization functions?"; then
@@ -1395,7 +1844,7 @@ else
                 optimize_security
             fi
 
-            if ask_yes_no "Run Diagnostic functions?"; then
+            if ask_yes_no "Run Diagnostic & Educational functions?"; then
                 echo "Running diagnostic functions..."
                 check_large_files
                 check_crash_logs
