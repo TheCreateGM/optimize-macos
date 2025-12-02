@@ -1,10 +1,22 @@
-# OptimacOS - macOS System Optimization Script
+# macOS System Optimization & Ricing Scripts
 
-A comprehensive shell script designed to fix common macOS issues including Finder crashes, app launch problems, system slowdowns, and startup disk space issues. It also provides advanced system optimization, memory management, and bulk user creation functionality.
+Two powerful bash scripts for macOS: **OptimacOS** for comprehensive system optimization and troubleshooting, and **RicemacOS** for aesthetic customization and minimal setup.
 
-## 🚀 Features
+---
 
-This script provides 33 different system optimization and repair operations:
+## 📦 Scripts Overview
+
+### 1. OptimacOS (`optimacos.sh`)
+A comprehensive system optimization and repair script with 39 different operations to fix common macOS issues, improve performance, and manage system resources.
+
+### 2. RicemacOS (`ricemacos.sh`)
+A minimal aesthetic configuration script that transforms your macOS into a clean, optimized, and visually appealing setup with modern CLI tools.
+
+---
+
+## 🚀 OptimacOS Features
+
+This script provides 39 different system optimization and repair operations:
 
 ### Core System Fixes
 - **Finder Issues**: Restart Finder, clear preferences, and fix unresponsive behavior
@@ -42,6 +54,8 @@ This script provides 33 different system optimization and repair operations:
 
 ## 🔧 Installation
 
+### OptimacOS Installation
+
 1. Download the script:
    ```bash
    curl -O https://raw.githubusercontent.com/TheCreateGM/optimize-macos/refs/heads/main/optimacos.sh
@@ -52,7 +66,21 @@ This script provides 33 different system optimization and repair operations:
    chmod +x optimacos.sh
    ```
 
+### RicemacOS Installation
+
+1. Download the script:
+   ```bash
+   curl -O https://raw.githubusercontent.com/TheCreateGM/optimize-macos/refs/heads/main/ricemacos.sh
+   ```
+
+2. Make it executable:
+   ```bash
+   chmod +x ricemacos.sh
+   ```
+
 ## 🏃 Usage
+
+### OptimacOS Usage
 
 Run the script from Terminal with various execution modes:
 
@@ -119,6 +147,12 @@ The script runs in interactive mode by default, asking for confirmation before e
 | 31 | Memory Management Optimization | Enhanced memory management and pressure control |
 | 32 | SSD Optimization | Configures settings optimized for SSD drives |
 | 33 | Security Settings Optimization | Configures firewall and security settings |
+| 34 | CPU/GPU Thread Optimization | Advanced thread allocation and scheduling |
+| 35 | Thermal Management | Optimizes cooling and thermal settings |
+| 36 | Kernel-Level Optimization | Linux-inspired kernel parameter tuning |
+| 37 | OpenCore/Hackintosh Optimization | Optimizations for non-Apple hardware |
+| 38 | Advanced Hardware Tuning | WindowServer priority and architecture-specific tuning |
+| 39 | SMC & NVRAM Reset Guidance | Instructions for hardware-level resets |
 
 ## ⚙️ Configuration
 
@@ -251,6 +285,191 @@ The script includes a powerful bulk user creation functionality (Section 29) tha
 
 This is particularly useful for setting up lab environments, testing, or when preparing multiple workstations.
 
+---
+
+## 🎨 RicemacOS Features
+
+RicemacOS transforms your macOS into a minimal, aesthetic, and performance-optimized setup.
+
+### Core Features
+
+#### 🛠️ Essential Tools Installation
+Automatically installs modern CLI tools via Homebrew:
+- **fastfetch** - Modern system info display (neofetch alternative)
+- **btop** - Beautiful process viewer (htop alternative)
+- **bat** - Enhanced cat with syntax highlighting
+- **eza** - Modern ls replacement with icons
+- **fzf** - Fuzzy finder for quick file navigation
+- **ripgrep** - Lightning-fast grep alternative
+- **fd** - User-friendly find alternative
+- **starship** - Customizable cross-shell prompt
+- **zoxide** - Smarter cd command with frecency
+
+#### 🎯 System Appearance
+- **Dark Mode** - Optional system-wide dark theme
+- **Minimal Dock** - Auto-hiding, small size, clean slate
+- **Clean Menu Bar** - Auto-hide option, minimal icons
+- **Reduced Transparency** - Better performance
+- **Reduced Motion** - Faster UI animations
+- **Custom Screenshots** - Dedicated folder, PNG format, no shadows
+
+#### 📁 Finder Configuration
+- Show hidden files and extensions
+- Path bar and status bar enabled
+- List view by default
+- Folders on top
+- Disabled animations
+- No extension change warnings
+
+#### ⚡ Performance Optimizations
+- All UI animations disabled
+- Faster Mission Control
+- Dashboard disabled
+- Time Machine prompts disabled
+- Hibernation optimization for SSDs
+- Sudden motion sensor disabled (for SSDs)
+
+#### 🎨 Terminal Customization
+- **Starship Prompt** - Beautiful, minimal prompt with Git integration
+- **Useful Aliases** - Enhanced commands for common tasks
+- **Nerd Fonts** - Optional installation of JetBrains Mono and Fira Code
+
+#### 🔧 Configuration Management
+- Automatic backup creation before changes
+- Non-destructive modifications
+- Easy restoration options
+
+### RicemacOS Usage
+
+Run the script interactively:
+
+```bash
+./ricemacos.sh
+```
+
+The script will:
+1. Create a backup of your current settings
+2. Install Homebrew if not present
+3. Ask for confirmation before each major change
+4. Install tools and apply configurations
+5. Restart affected services
+
+### What Gets Configured
+
+#### Dock Settings
+```bash
+# Minimal dock size (36px)
+# Auto-hide with fast animations
+# No magnification
+# Show only active apps
+# No recent apps
+```
+
+#### Finder Settings
+```bash
+# Show all files and extensions
+# Path and status bars visible
+# List view default
+# Folders first
+# Fast animations
+# Current folder search
+```
+
+#### Terminal Aliases
+```bash
+ls='exa --icons --group-directories-first'
+ll='exa -l --icons --group-directories-first'
+la='exa -la --icons --group-directories-first'
+cat='bat --style=plain'
+find='fd'
+grep='rg'
+cleanup='find . -type f -name "*.DS_Store" -ls -delete'
+showfiles='defaults write com.apple.finder AppleShowAllFiles -bool true && killall Finder'
+hidefiles='defaults write com.apple.finder AppleShowAllFiles -bool false && killall Finder'
+```
+
+### Starship Configuration
+
+RicemacOS includes a minimal Starship prompt configuration:
+
+```toml
+format = """
+[┌───────────────────>](bold green)
+[│](bold green) $directory$git_branch$git_status
+[└─>](bold green) """
+
+[directory]
+style = "bold cyan"
+truncation_length = 3
+
+[git_branch]
+symbol = " "
+style = "bold purple"
+
+[git_status]
+style = "bold yellow"
+```
+
+### Backup & Restoration
+
+RicemacOS creates a timestamped backup before making changes:
+
+```bash
+~/.macos_rice_backup_YYYYMMDD_HHMMSS/
+└── dock_settings.plist
+```
+
+To restore defaults:
+```bash
+defaults read com.apple.dock
+# Then manually restore settings or use Time Machine
+```
+
+### Font Installation
+
+Optional Nerd Fonts installation for enhanced terminal experience:
+- **JetBrains Mono Nerd Font** - Clean, readable monospace font
+- **Fira Code Nerd Font** - Popular coding font with ligatures
+
+### System Requirements
+
+- macOS 10.14 (Mojave) or later
+- Administrator privileges
+- Internet connection (for Homebrew and tool installation)
+
+---
+
+## 🔄 Comparison: OptimacOS vs RicemacOS
+
+| Feature | OptimacOS | RicemacOS |
+|---------|-----------|-----------|
+| **Purpose** | System repair & optimization | Aesthetic customization |
+| **Complexity** | Advanced (39 operations) | Simple (focused setup) |
+| **Target Users** | Power users, troubleshooting | Developers, minimalists |
+| **Modifications** | System-level changes | User-level preferences |
+| **Tools** | Built-in macOS utilities | Modern CLI tools |
+| **Reversibility** | Mostly reversible | Fully reversible |
+| **Time Required** | 5-30 minutes | 5-10 minutes |
+| **Restart Required** | Recommended | Optional |
+
+### When to Use OptimacOS
+- System is running slowly
+- Apps are crashing frequently
+- Finder is unresponsive
+- Low disk space issues
+- Need advanced performance tuning
+- Troubleshooting system problems
+
+### When to Use RicemacOS
+- Setting up a new Mac
+- Want a minimal aesthetic
+- Need modern CLI tools
+- Prefer keyboard-driven workflow
+- Want better terminal experience
+- Like clean, distraction-free UI
+
+---
+
 ## 📄 License
 
 This script is provided as-is for educational and personal use. Use at your own risk and always backup your data before running system maintenance scripts.
@@ -261,8 +480,41 @@ Feel free to submit issues, feature requests, or improvements to make this scrip
 
 ---
 
-**Version**: 3.0
-**Last Updated**: 2025
-**Compatibility**: macOS 10.15+, 11.x, 12.x, 13.x
+## 📊 Quick Start Guide
 
-there is ricing for people who want to try it
+### For System Optimization & Repair
+```bash
+# Download and run OptimacOS
+curl -O https://raw.githubusercontent.com/TheCreateGM/optimize-macos/refs/heads/main/optimacos.sh
+chmod +x optimacos.sh
+./optimacos.sh --help
+```
+
+### For Aesthetic Customization
+```bash
+# Download and run RicemacOS
+curl -O https://raw.githubusercontent.com/TheCreateGM/optimize-macos/refs/heads/main/ricemacos.sh
+chmod +x ricemacos.sh
+./ricemacos.sh
+```
+
+### For Complete Setup (Both Scripts)
+```bash
+# Run OptimacOS first for system optimization
+./optimacos.sh --all
+
+# Then run RicemacOS for aesthetic setup
+./ricemacos.sh
+
+# Restart your Mac
+sudo shutdown -r now
+```
+
+---
+
+**OptimacOS Version**: 1.0.0  
+**RicemacOS Version**: 1.0.0  
+**Last Updated**: 2025  
+**Compatibility**: macOS 10.14+ (Mojave and later)
+
+**Note**: Both scripts are safe, non-destructive, and create backups before making changes. Always review what each script does before running it.
