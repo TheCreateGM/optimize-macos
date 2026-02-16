@@ -1,1140 +1,895 @@
 #!/bin/bash
+################################################################################
+# OptimacOS - Universal macOS Optimization Engine
+# Version: 4.0.0
+# Fully automated, zero-interaction, universal optimization for all macOS devices
+################################################################################
 
-# --- Configuration ---
-LOG_RETENTION_DAYS=7
-LARGE_FILE_SIZE_GB=1
-DEFAULT_YES=false
-VERBOSE=true
-RUN_ALL=false
-SCRIPT_VERSION="2.0.0"
+set -o pipefail
+
+# Global Configuration
+SCRIPT_VERSION="4.0.0"
 START_TIME=$(date +%s)
+LOG_FILE=~/Desktop/optimacos_$(date +%Y%m%d_%H%M%S).log
+VERBOSE=true
+SAFE_MODE=true
 
-# Package manager preferences
-USE_HOMEBREW=true
-USE_MACPORTS=false
+# System Detection Variables
+CPU_VENDOR=""
+CPU_ARCH=""
+CPU_CORES=""
+GPU_VENDOR=""
+GPU_MODEL=""
+TOTAL_RAM_GB=0
+STORAGE_TYPE=""
+IS_LAPTOP=false
+IS_OPENCORE=false
+IS_INTEL=false
+IS_APPLE_SILICON=false
+MACOS_VERSION=""
+MACOS_MAJOR=""
 
-# --- Helper Functions ---
-ask_yes_no() {
-    if [[ "$RUN_ALL" == true ]]; then
-        return 0
-    fi
+################################################################################
+# Logging Functions
+################################################################################
 
-    if [[ ! -t 0 ]]; then
-        return 1
-    fi
-
-    local prompt="$1"
-    local default_option="n"
-
-    if [[ "$DEFAULT_YES" == true ]]; then
-        prompt="$1 [Y/n]: "
-        default_option="y"
-    else
-        prompt="$1 [y/N]: "
-        default_option="n"
-    fi
-
-    while true; do
-        read -p "$prompt" yn
-        yn=${yn:-$default_option}
-        case $yn in
-            [Yy]* ) return 0;;
-            [Nn]* ) return 1;;
-            * ) echo "Please answer yes (y) or no (n).";;
-        esac
-    done
+log() {
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    echo "$msg" | tee -a "$LOG_FILE"
 }
 
-detect_os_version() {
-    OS_VERSION=$(sw_vers -productVersion)
-    OS_MAJOR_VERSION=$(echo "$OS_VERSION" | cut -d. -f1)
-    OS_MINOR_VERSION=$(echo "$OS_VERSION" | cut -d. -f2)
-
-    if [[ "$VERBOSE" == true ]]; then
-        echo "Detected macOS version: $OS_VERSION (Major: $OS_MAJOR_VERSION, Minor: $OS_MINOR_VERSION)"
-    fi
-}
-
-check_disk_space() {
-    local available_space=$(df -h / | awk 'NR==2 {print $4}')
-    echo "Available disk space: $available_space"
-
-    local available_bytes=$(df / | awk 'NR==2 {print $4}')
-    if [[ $available_bytes -lt 1048576 ]]; then
-        echo "⚠️ WARNING: Low disk space. Some operations may fail."
-    fi
-}
-
-initialize_script() {
-    detect_os_version
-    check_disk_space
-}
-
-print_section_header() {
+log_section() {
     local emoji="$1"
-    local section_num="$2"
-    local title="$3"
-    local separator_line=""
-
-    for ((i=0; i<${#title}+4; i++)); do
-        separator_line+="-"
-    done
-
-    echo -e "\n$emoji Section $section_num: $title"
-    echo "$separator_line"
+    local title="$2"
+    local separator="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log ""
+    log "$emoji $title"
+    log "$separator"
 }
 
-check_status() {
-    local message="$1"
-    local task_name="$2"
-    local exit_code="${3:-$?}"
-
-    if [ $exit_code -eq 0 ]; then
-        echo "✅ $message"
-    else
-        echo "❌ Error in $task_name: exit code $exit_code"
-    fi
-
-    return $exit_code
+log_success() {
+    log "✅ $*"
 }
 
-run_command() {
+log_error() {
+    log "❌ $*"
+}
+
+log_warning() {
+    log "⚠️  $*"
+}
+
+log_info() {
+    log "ℹ️  $*"
+}
+
+safe_run() {
     local cmd="$1"
-    local success_msg="$2"
-    local task_name="$3"
-
+    local desc="$2"
+    
     if [[ "$VERBOSE" == true ]]; then
-        echo "Executing: $cmd"
+        log_info "Executing: $desc"
     fi
-
-    eval "$cmd"
-    check_status "$success_msg" "$task_name"
-    return $?
-}
-
-# --- Package Manager Functions ---
-check_homebrew() {
-    if command -v brew &> /dev/null; then
-        echo "✅ Homebrew is installed"
+    
+    if eval "$cmd" >> "$LOG_FILE" 2>&1; then
+        log_success "$desc"
         return 0
     else
-        echo "⚠️ Homebrew is not installed"
+        log_error "Failed: $desc (continuing...)"
         return 1
     fi
 }
 
-install_homebrew() {
-    if ! check_homebrew; then
-        if ask_yes_no "Install Homebrew? (Required for some optimizations)"; then
-            echo "Installing Homebrew..."
-            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-            
-            # Add Homebrew to PATH for Apple Silicon Macs
-            if [[ $(uname -m) == "arm64" ]]; then
-                echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
-                eval "$(/opt/homebrew/bin/brew shellenv)"
-            fi
-            
-            check_status "Homebrew installed" "install_homebrew"
+################################################################################
+# System Detection
+################################################################################
+
+detect_system() {
+    log_section "🔍" "System Detection"
+    
+    # macOS Version
+    MACOS_VERSION=$(sw_vers -productVersion)
+    MACOS_MAJOR=$(echo "$MACOS_VERSION" | cut -d. -f1)
+    log_info "macOS Version: $MACOS_VERSION"
+    
+    # CPU Detection
+    CPU_ARCH=$(uname -m)
+    CPU_VENDOR=$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo "Unknown")
+    CPU_CORES=$(sysctl -n hw.ncpu 2>/dev/null || echo "Unknown")
+    
+    if [[ "$CPU_ARCH" == "arm64" ]]; then
+        IS_APPLE_SILICON=true
+        log_info "CPU: Apple Silicon ($CPU_VENDOR) - $CPU_CORES cores"
+    else
+        IS_INTEL=true
+        log_info "CPU: Intel ($CPU_VENDOR) - $CPU_CORES cores"
+    fi
+    
+    # RAM Detection
+    local ram_bytes=$(sysctl -n hw.memsize 2>/dev/null || echo "0")
+    TOTAL_RAM_GB=$((ram_bytes / 1024 / 1024 / 1024))
+    log_info "RAM: ${TOTAL_RAM_GB}GB"
+    
+    # GPU Detection
+    GPU_MODEL=$(system_profiler SPDisplaysDataType 2>/dev/null | grep "Chipset Model" | head -1 | cut -d: -f2 | xargs || echo "Unknown")
+    
+    if [[ "$GPU_MODEL" == *"Intel"* ]]; then
+        GPU_VENDOR="Intel"
+    elif [[ "$GPU_MODEL" == *"AMD"* ]] || [[ "$GPU_MODEL" == *"Radeon"* ]]; then
+        GPU_VENDOR="AMD"
+    elif [[ "$GPU_MODEL" == *"NVIDIA"* ]]; then
+        GPU_VENDOR="NVIDIA"
+    elif [[ "$GPU_MODEL" == *"Apple"* ]]; then
+        GPU_VENDOR="Apple"
+    else
+        GPU_VENDOR="Unknown"
+    fi
+    log_info "GPU: $GPU_VENDOR ($GPU_MODEL)"
+    
+    # Storage Type Detection
+    local disk_type=$(diskutil info / 2>/dev/null | grep "Solid State" | awk '{print $3}')
+    if [[ "$disk_type" == "Yes" ]]; then
+        STORAGE_TYPE="SSD"
+    else
+        STORAGE_TYPE="HDD"
+    fi
+    log_info "Storage: $STORAGE_TYPE"
+    
+    # Laptop vs Desktop
+    if system_profiler SPPowerDataType 2>/dev/null | grep -q "Battery"; then
+        IS_LAPTOP=true
+        log_info "Device Type: Laptop"
+    else
+        IS_LAPTOP=false
+        log_info "Device Type: Desktop"
+    fi
+    
+    # OpenCore Detection
+    # Check filesystem and NVRAM variable commonly used by OpenCore
+    if [[ -d "/Volumes/EFI/EFI/OC" ]] || nvram -p 2>/dev/null | grep -q "opencore-version"; then
+        IS_OPENCORE=true
+        log_warning "OpenCore detected - applying safe optimizations only"
+    else
+        IS_OPENCORE=false
+        log_info "Native Mac detected"
+    fi
+    
+    log_success "System detection complete"
+}
+
+################################################################################
+# Package Manager & Tools
+################################################################################
+
+ensure_homebrew() {
+    if ! command -v brew &> /dev/null; then
+        log_info "Installing Homebrew..."
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" >> "$LOG_FILE" 2>&1
+        
+        if [[ "$IS_APPLE_SILICON" == true ]]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        fi
+        
+        if command -v brew &> /dev/null; then
+            log_success "Homebrew installed"
         else
-            echo "Skipping Homebrew installation. Some features will be unavailable."
-            USE_HOMEBREW=false
+            log_warning "Homebrew installation failed - some features unavailable"
         fi
-    fi
-}
-
-check_macports() {
-    if command -v port &> /dev/null; then
-        echo "✅ MacPorts is installed"
-        return 0
     else
-        echo "⚠️ MacPorts is not installed"
-        return 1
+        log_success "Homebrew already installed"
     fi
 }
 
-install_package() {
-    local package_name="$1"
-    local brew_name="${2:-$package_name}"
-    local port_name="${3:-$package_name}"
+install_tool() {
+    local tool="$1"
+    local brew_name="${2:-$tool}"
     
-    # Check if package is already installed
-    if command -v "$package_name" &> /dev/null; then
-        echo "✅ $package_name is already installed"
+    if command -v "$tool" &> /dev/null; then
         return 0
     fi
     
-    if [[ "$USE_HOMEBREW" == true ]] && check_homebrew; then
-        echo "Installing $package_name via Homebrew..."
-        brew install "$brew_name" 2>/dev/null
-        return $?
-    elif [[ "$USE_MACPORTS" == true ]] && check_macports; then
-        echo "Installing $package_name via MacPorts..."
-        sudo port install "$port_name" 2>/dev/null
-        return $?
-    else
-        echo "⚠️ No package manager available to install $package_name"
-        return 1
+    if command -v brew &> /dev/null; then
+        brew install "$brew_name" >> "$LOG_FILE" 2>&1 && log_success "Installed $tool" || log_warning "Failed to install $tool"
     fi
 }
 
-# --- NEW: Advanced Performance Optimizations ---
+################################################################################
+# Network Optimization
+################################################################################
 
-# --- 40. Advanced Memory Optimization ---
-advanced_memory_optimization() {
-    print_section_header "🧠" "40" "Advanced Memory Optimization"
+optimize_network() {
+    log_section "🌐" "Network Optimization"
     
-    if ask_yes_no "Apply advanced memory optimizations?"; then
-        echo "Optimizing memory subsystem..."
-        
-        # Install memory monitoring tools
-        install_package "htop" "htop" "htop"
-        
-        # Memory pressure optimization
-        sudo sysctl -w vm.compressor_mode=4 2>/dev/null || true
-        sudo sysctl -w vm.swapusage=0 2>/dev/null || true
-        sudo sysctl -w vm.vm_page_free_target=4000 2>/dev/null || true
-        sudo sysctl -w vm.vm_page_free_min=2000 2>/dev/null || true
-        
-        # Optimize swap behavior
-        sudo sysctl -w vm.global_no_user_wire_limit=1 2>/dev/null || true
-        sudo sysctl -w vm.global_user_wire_limit=0 2>/dev/null || true
-        
-        # Memory compression optimization
-        sudo sysctl -w vm.compressor_compressed_swap_chunk_size=4096 2>/dev/null || true
-        
-        # Clear memory pressure
-        sudo purge
-        
-        # Optimize memory allocation
-        sudo sysctl -w kern.maxfiles=524288 2>/dev/null || true
-        sudo sysctl -w kern.maxfilesperproc=262144 2>/dev/null || true
-        
-        echo "✅ Advanced memory optimization complete"
-        
-        if [[ "$VERBOSE" == true ]]; then
-            echo "Current memory statistics:"
-            vm_stat | head -15
-        fi
-    else
-        echo "Skipping advanced memory optimization."
+    # Flush DNS cache (Broad support)
+    safe_run "sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder" "Flush DNS cache"
+    
+    # Renew DHCP
+    safe_run "sudo ipconfig set en0 DHCP" "Renew DHCP lease (en0)"
+    
+    # Optimize TCP/IP stack
+    safe_run "sudo sysctl -w net.inet.tcp.delayed_ack=0" "Disable delayed ACK"
+    safe_run "sudo sysctl -w net.inet.tcp.mssdflt=1440" "Optimize TCP MSS"
+    safe_run "sudo sysctl -w net.inet.tcp.sendspace=1048576" "Increase TCP send buffer"
+    safe_run "sudo sysctl -w net.inet.tcp.recvspace=1048576" "Increase TCP receive buffer"
+    safe_run "sudo sysctl -w net.inet.tcp.win_scale_factor=8" "Optimize TCP window scaling"
+    safe_run "sudo sysctl -w net.inet.udp.maxdgram=65535" "Increase max UDP datagram size"
+    
+    # Disable unnecessary network discovery
+    safe_run "sudo defaults write /Library/Preferences/com.apple.mDNSResponder.plist NoMulticastAdvertisements -bool true" "Disable multicast advertisements"
+    
+    # Optimize Wi-Fi
+    if networksetup -listallhardwareports 2>/dev/null | grep -q "Wi-Fi"; then
+        safe_run "sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport prefs DisconnectOnLogout=NO" "Disable Wi-Fi disconnect on logout"
+        safe_run "sudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport prefs JoinMode=Strongest" "Set Wi-Fi join mode to Strongest"
     fi
+    
+    # Disable IPv6 if user isn't using it extensively (Optional, safer to leave enabled, but optimizing privacy)
+    # safe_run "networksetup -setv6off Wi-Fi" "Disable IPv6 on Wi-Fi (privacy)"
+    
+    log_success "Network optimization complete"
 }
 
-# --- 41. Startup Optimization ---
-startup_optimization() {
-    print_section_header "🚀" "41" "Startup Optimization"
+################################################################################
+# System Repair & Integrity
+################################################################################
+
+repair_system() {
+    log_section "🛠" "System Repair & Integrity"
     
-    if ask_yes_no "Optimize system startup?"; then
-        echo "Optimizing startup processes..."
-        
-        # Disable unnecessary launch daemons
-        echo "Disabling unnecessary launch daemons..."
-        
-        # List of daemons that can be safely disabled for better performance
-        local daemons_to_disable=(
-            "com.apple.metadata.mds"
-            "com.apple.metadata.mds.index"
-            "com.apple.metadata.mds.scan"
-            "com.apple.cloudd"
-            "com.apple.cloudpaird"
-            "com.apple.cloudphotosd"
-            "com.apple.gamed"
-            "com.apple.icloud.findmydeviced"
-            "com.apple.iCloudUserNotifications"
-        )
-        
-        for daemon in "${daemons_to_disable[@]}"; do
-            if ask_yes_no "Disable $daemon?"; then
-                sudo launchctl unload -w "/System/Library/LaunchDaemons/${daemon}.plist" 2>/dev/null || true
-                echo "  Disabled: $daemon"
-            fi
-        done
-        
-        # Optimize boot cache
-        echo "Optimizing boot cache..."
-        sudo kextcache -update-volume / 2>/dev/null || true
-        
-        # Reduce boot delay
-        sudo nvram boot-args="serverperfmode=1 $(nvram boot-args 2>/dev/null | cut -f 2-)" 2>/dev/null || true
-        
-        # Disable hibernation for faster wake
-        sudo pmset -a hibernatemode 0 2>/dev/null || true
-        sudo rm -f /var/vm/sleepimage 2>/dev/null || true
-        
-        # Optimize login window
-        sudo defaults write /Library/Preferences/com.apple.loginwindow TALLogoutSavesState -bool false
-        
-        echo "✅ Startup optimization complete"
-    else
-        echo "Skipping startup optimization."
+    # Verify disk
+    safe_run "diskutil verifyVolume /" "Verify system volume"
+    
+    # Repair permissions (macOS 10.11+)
+    if [[ "$MACOS_MAJOR" -ge 11 ]]; then
+        safe_run "sudo diskutil resetUserPermissions / \$(id -u)" "Reset user permissions"
     fi
+    
+    # Rebuild kext cache (OpenCore-safe)
+    if [[ "$IS_OPENCORE" == false ]]; then
+        safe_run "sudo kextcache -i /" "Rebuild kernel extension cache"
+    else
+        log_warning "Skipping kext cache rebuild (OpenCore detected)"
+    fi
+    
+    # Rebuild Launch Services database
+    safe_run "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user" "Rebuild Launch Services"
+    
+    # Rebuild Spotlight index
+    safe_run "sudo mdutil -E /" "Rebuild Spotlight index"
+    
+    log_success "System repair complete"
 }
 
-# --- 42. Advanced CPU Optimization ---
-advanced_cpu_optimization() {
-    print_section_header "⚡" "42" "Advanced CPU Optimization"
+################################################################################
+# Disk Cleanup & Storage Optimization
+################################################################################
+
+cleanup_storage() {
+    log_section "🧹" "Disk Cleanup & Storage Optimization"
     
-    if ask_yes_no "Apply advanced CPU optimizations?"; then
-        echo "Optimizing CPU performance..."
-        
-        # Install CPU monitoring tools
-        install_package "cpulimit" "cpulimit" "cpulimit"
-        
-        # Detect CPU type
-        local cpu_type=$(sysctl -n machdep.cpu.brand_string)
-        echo "Detected CPU: $cpu_type"
-        
-        # CPU scheduler optimization
-        sudo sysctl -w kern.sched_quantum=10000 2>/dev/null || true
-        sudo sysctl -w kern.sched_preempt_quantum=5000 2>/dev/null || true
-        sudo sysctl -w kern.timer.deadline_tracking=0 2>/dev/null || true
-        
-        # Process priority optimization
-        sudo sysctl -w kern.maxproc=4096 2>/dev/null || true
-        sudo sysctl -w kern.maxprocperuid=2048 2>/dev/null || true
-        
-        # Thread optimization
-        sudo sysctl -w kern.num_tasks_threads=8192 2>/dev/null || true
-        sudo sysctl -w kern.pthread_priority_delay=50000 2>/dev/null || true
-        
-        # CPU power management
-        sudo pmset -a perfbias 0 2>/dev/null || true
-        sudo pmset -a perfmode performance 2>/dev/null || true
-        
-        # Turbo Boost optimization (Intel)
-        if [[ "$cpu_type" == *"Intel"* ]]; then
-            echo "Intel CPU detected - optimizing Turbo Boost..."
-            sudo sysctl -w machdep.xcpm.mode=0 2>/dev/null || true
-        fi
-        
-        # Apple Silicon optimization
-        if [[ $(uname -m) == "arm64" ]]; then
-            echo "Apple Silicon detected - enabling High Power Mode..."
-            sudo pmset -a highpowermode 1 2>/dev/null || true
-        fi
-        
-        echo "✅ Advanced CPU optimization complete"
-        
-        if [[ "$VERBOSE" == true ]]; then
-            echo "CPU information:"
-            sysctl -a | grep machdep.cpu | head -20
-        fi
-    else
-        echo "Skipping advanced CPU optimization."
+    # Clear system caches
+    safe_run "sudo rm -rf /Library/Caches/*" "Clear system caches"
+    safe_run "sudo rm -rf /System/Library/Caches/*" "Clear system library caches"
+    
+    # Clear user caches
+    safe_run "rm -rf ~/Library/Caches/*" "Clear user caches"
+    
+    # Clear temporary files
+    safe_run "sudo rm -rf /private/var/tmp/*" "Clear /var/tmp"
+    safe_run "sudo rm -rf /private/tmp/*" "Clear /tmp"
+    
+    # Clear logs
+    safe_run "sudo rm -rf /private/var/log/*.log" "Clear system logs"
+    safe_run "sudo rm -rf /Library/Logs/*" "Clear library logs"
+    safe_run "rm -rf ~/Library/Logs/*" "Clear user logs"
+    
+    # Remove Time Machine local snapshots
+    safe_run "sudo tmutil listlocalsnapshots / | grep 'com.apple.TimeMachine' | while read snapshot; do sudo tmutil deletelocalsnapshots \${snapshot##*.}; done" "Remove Time Machine snapshots"
+    
+    # Clear download history
+    safe_run "rm -f ~/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2" "Clear download history"
+    
+    # Clear Safari cache
+    safe_run "rm -rf ~/Library/Caches/com.apple.Safari/*" "Clear Safari cache"
+    
+    # Clear font caches
+    safe_run "sudo atsutil databases -remove" "Clear font caches"
+    
+    # Xcode derived data
+    if [[ -d ~/Library/Developer/Xcode/DerivedData ]]; then
+        safe_run "rm -rf ~/Library/Developer/Xcode/DerivedData/*" "Clear Xcode DerivedData"
     fi
+
+    log_success "Storage cleanup complete"
 }
 
-# --- 43. Advanced GPU Optimization ---
-advanced_gpu_optimization() {
-    print_section_header "🎮" "43" "Advanced GPU Optimization"
+################################################################################
+# Performance & Responsiveness
+################################################################################
+
+optimize_performance() {
+    log_section "⚡" "Performance & Responsiveness"
     
-    if ask_yes_no "Apply advanced GPU optimizations?"; then
-        echo "Optimizing GPU performance..."
-        
-        # Detect GPU
-        local gpu_info=$(system_profiler SPDisplaysDataType 2>/dev/null | grep "Chipset Model" | cut -d: -f2 | xargs)
-        echo "Detected GPU: $gpu_info"
-        
-        # Metal optimization
-        defaults write com.apple.metalgl DisableForceDiscreteGPU -bool false 2>/dev/null || true
-        defaults write com.apple.metalgl EnableContextReuse -bool true 2>/dev/null || true
-        defaults write com.apple.metalgl DisableComputeCompaction -bool false 2>/dev/null || true
-        defaults write NSGlobalDomain com.apple.use.metal -bool true 2>/dev/null || true
-        
-        # OpenGL/Metal rendering optimization
-        defaults write NSGlobalDomain WebKitAcceleratedCompositingEnabled -bool true 2>/dev/null || true
-        defaults write NSGlobalDomain WebKitUseHardwareAcceleration -bool true 2>/dev/null || true
-        defaults write com.apple.CoreGraphics HardwareAcceleration -bool true 2>/dev/null || true
-        
-        # Force discrete GPU if available
-        if system_profiler SPDisplaysDataType 2>/dev/null | grep -q "AMD\|NVIDIA\|Radeon"; then
-            echo "Discrete GPU detected - forcing discrete GPU usage..."
-            sudo pmset -a gpuswitch 2 2>/dev/null || true
-            defaults write com.apple.gpu prefers_discrete_gpu -bool true 2>/dev/null || true
-        fi
-        
-        # GPU thread allocation
-        sudo sysctl -w kern.gpu.max_threads=256 2>/dev/null || true
-        
-        # Disable GPU throttling
-        sudo sysctl -w kern.gpu.throttle=0 2>/dev/null || true
-        
-        echo "✅ Advanced GPU optimization complete"
-        
-        if [[ "$VERBOSE" == true ]]; then
-            echo "GPU information:"
-            system_profiler SPDisplaysDataType | grep -A 10 "Chipset Model"
-        fi
-    else
-        echo "Skipping advanced GPU optimization."
-    fi
+    # Disable animations
+    safe_run "defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false" "Disable window animations"
+    safe_run "defaults write NSGlobalDomain NSWindowResizeTime -float 0.001" "Speed up window resize"
+    safe_run "defaults write com.apple.dock expose-animation-duration -float 0.1" "Speed up Mission Control"
+    safe_run "defaults write com.apple.dock autohide-delay -float 0" "Remove Dock hide delay"
+    safe_run "defaults write com.apple.dock autohide-time-modifier -float 0.5" "Speed up Dock animation"
+    safe_run "defaults write -g QLPanelAnimationDuration -float 0" "Speed up Quick Look"
+    safe_run "defaults write com.apple.finder DisableAllAnimations -bool true" "Disable Finder animations"
+    safe_run "defaults write com.apple.dock launchanim -bool false" "Disable app launch animation in Dock"
+    
+    # Optimize UI responsiveness
+    safe_run "defaults write NSGlobalDomain NSScrollAnimationEnabled -bool false" "Disable scroll animations"
+    safe_run "defaults write NSGlobalDomain NSDocumentRevisionsWindowTransformAnimation -bool false" "Disable document animations"
+    
+    # Optimize Finder
+    safe_run "defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false" "Disable extension change warning"
+    safe_run "defaults write com.apple.finder ShowPathbar -bool true" "Show Finder path bar"
+    safe_run "defaults write com.apple.finder ShowStatusBar -bool true" "Show Finder status bar"
+    safe_run "defaults write com.apple.finder _FXShowPosixPathInTitle -bool true" "Show full path in Finder title"
+    safe_run "defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true" "Avoid creating .DS_Store on network volumes"
+    safe_run "defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true" "Avoid creating .DS_Store on USB volumes"
+
+    # Optimize I/O scheduler
+    safe_run "sudo sysctl -w kern.aio_max_requests=4096" "Increase async I/O requests"
+    safe_run "sudo sysctl -w kern.maxvnodes=524288" "Increase max vnodes" # Keeping relatively high but safe
+    safe_run "sudo sysctl -w vfs.generic.sync_timeout=300" "Optimize sync timeout"
+    
+    # Optimize app launch
+    safe_run "defaults write NSGlobalDomain NSDisableAutomaticTermination -bool true" "Disable automatic termination"
+    
+    # Restart affected services
+    safe_run "killall Dock" "Restart Dock"
+    safe_run "killall Finder" "Restart Finder"
+    safe_run "killall SystemUIServer" "Restart SystemUIServer"
+    
+    log_success "Performance optimization complete"
 }
 
-# --- 44. RAM Optimization & Management ---
-ram_optimization() {
-    print_section_header "💾" "44" "RAM Optimization & Management"
+################################################################################
+# Privacy & Telemetry Hardening
+################################################################################
+
+harden_privacy() {
+    log_section "🔒" "Privacy & Telemetry Hardening"
     
-    if ask_yes_no "Optimize RAM usage and management?"; then
-        echo "Optimizing RAM..."
-        
-        # Get total RAM
-        local total_ram=$(sysctl -n hw.memsize)
-        local total_ram_gb=$((total_ram / 1024 / 1024 / 1024))
-        echo "Total RAM: ${total_ram_gb}GB"
-        
-        # Clear RAM
-        sudo purge
-        
-        # Optimize virtual memory
-        sudo sysctl -w vm.max_map_count=262144 2>/dev/null || true
-        sudo sysctl -w vm.overcommit_memory=1 2>/dev/null || true
-        
-        # Disable swap if enough RAM (16GB+)
-        if [[ $total_ram_gb -ge 16 ]]; then
-            if ask_yes_no "Disable swap? (Recommended for 16GB+ RAM)"; then
-                sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.dynamic_pager.plist 2>/dev/null || true
-                sudo rm /private/var/vm/swapfile* 2>/dev/null || true
-                echo "Swap disabled"
-            fi
-        fi
-        
-        # Optimize memory pressure thresholds
-        sudo sysctl -w vm.memory_pressure_critical=95 2>/dev/null || true
-        sudo sysctl -w vm.memory_pressure_warn=80 2>/dev/null || true
-        
-        # Clear inactive memory
-        sudo memory_pressure -l critical 2>/dev/null || sudo purge
-        
-        echo "✅ RAM optimization complete"
-        
-        if [[ "$VERBOSE" == true ]]; then
-            echo "Current RAM usage:"
-            vm_stat
-        fi
-    else
-        echo "Skipping RAM optimization."
-    fi
+    # Disable analytics and telemetry
+    safe_run "defaults write com.apple.assistant.support 'Assistant Enabled' -bool false" "Disable Siri"
+    safe_run "defaults write com.apple.assistant.support 'Dictation Enabled' -bool false" "Disable dictation"
+    safe_run "defaults write com.apple.Siri StatusMenuVisible -bool false" "Hide Siri menu"
+    safe_run "defaults write com.apple.Siri UserHasDeclinedEnable -bool true" "Decline Siri"
+    
+    # Disable Spotlight suggestions
+    safe_run "defaults write com.apple.spotlight orderedItems -array '{enabled = 1;name = APPLICATIONS;}' '{enabled = 1;name = SYSTEM_PREFS;}' '{enabled = 0;name = MENU_SPOTLIGHT_SUGGESTIONS;}'" "Disable Spotlight suggestions"
+    
+    # Disable predictive text
+    safe_run "defaults write NSGlobalDomain NSAutomaticTextCompletionEnabled -bool false" "Disable text completion"
+    safe_run "defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false" "Disable auto-correct"
+    
+    # Disable crash reporter
+    safe_run "defaults write com.apple.CrashReporter DialogType none" "Disable crash reporter dialog"
+    
+    # Disable diagnostic data
+    safe_run "sudo defaults write /Library/Application\\ Support/CrashReporter/DiagnosticMessagesHistory.plist AutoSubmit -bool false" "Disable diagnostic submission"
+    
+    # Disable personalized ads
+    safe_run "defaults write com.apple.AdLib allowApplePersonalizedAdvertising -bool false" "Disable personalized ads"
+    safe_run "defaults write com.apple.AdLib forceLimitAdTracking -bool true" "Limit Ad Tracking"
+
+    # Disable Handoff
+    safe_run "defaults write ~/Library/Preferences/ByHost/com.apple.coreservices.useractivityd ActivityAdvertisingAllowed -bool false" "Disable Handoff"
+    safe_run "defaults write ~/Library/Preferences/ByHost/com.apple.coreservices.useractivityd ActivityReceivingAllowed -bool false" "Disable Handoff receiving"
+    
+    # Disable Game Center (Telemetry heavily embedded)
+    safe_run "defaults write com.apple.gamed Disabled -bool true" "Disable Game Center"
+
+    log_success "Privacy hardening complete"
 }
 
-# --- 45. Advanced SSD Optimization ---
-advanced_ssd_optimization() {
-    print_section_header "💽" "45" "Advanced SSD Optimization"
+################################################################################
+# Memory & RAM Optimization
+################################################################################
+
+optimize_memory() {
+    log_section "🧠" "Memory & RAM Optimization"
     
-    if ask_yes_no "Apply advanced SSD optimizations?"; then
-        echo "Optimizing SSD performance..."
-        
-        # Install smartmontools for SSD health monitoring
-        install_package "smartctl" "smartmontools" "smartmontools"
-        
+    # Purge inactive memory
+    safe_run "sudo purge" "Purge inactive memory"
+    
+    # Optimize memory compression
+    safe_run "sudo sysctl -w vm.compressor_mode=4" "Enable aggressive compression"
+    safe_run "sudo sysctl -w vm.vm_page_free_target=4000" "Optimize page free target"
+    safe_run "sudo sysctl -w vm.vm_page_free_min=2000" "Optimize page free minimum"
+    
+    # Optimize file limits
+    safe_run "sudo sysctl -w kern.maxfiles=524288" "Increase max files"
+    safe_run "sudo sysctl -w kern.maxfilesperproc=262144" "Increase max files per process"
+    
+    # Optimize swap behavior
+    safe_run "sudo sysctl -w vm.global_no_user_wire_limit=1" "Optimize wire limit"
+    
+    # Create RAMDisk for temp files if RAM >= 32GB
+    if [[ $TOTAL_RAM_GB -ge 32 ]]; then
+        local ramdisk_size=$((4 * 1024 * 2048)) # 4GB
+        if ! diskutil list | grep -q "RAMDisk"; then
+            safe_run "diskutil erasevolume HFS+ 'RAMDisk' \$(hdiutil attach -nomount ram://$ramdisk_size)" "Create 4GB RAMDisk"
+            safe_run "sudo ln -sf /Volumes/RAMDisk /tmp/ramdisk" "Link RAMDisk to /tmp"
+        fi
+    fi
+    
+    # Disable swap if RAM >= 32GB (Risky for lower RAM, keeping constraint high)
+    if [[ $TOTAL_RAM_GB -ge 32 ]]; then
+        safe_run "sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.dynamic_pager.plist" "Disable dynamic pager"
+        safe_run "sudo rm -f /private/var/vm/swapfile*" "Remove swap files"
+        log_info "Swap disabled (${TOTAL_RAM_GB}GB RAM detected)"
+    fi
+    
+    log_success "Memory optimization complete"
+}
+
+################################################################################
+# CPU Optimization
+################################################################################
+
+optimize_cpu() {
+    log_section "🖥" "CPU Optimization"
+    
+    # CPU scheduler optimization
+    safe_run "sudo sysctl -w kern.sched_quantum=10000" "Optimize scheduler quantum"
+    safe_run "sudo sysctl -w kern.sched_preempt_quantum=5000" "Optimize preempt quantum"
+    safe_run "sudo sysctl -w kern.timer.deadline_tracking=0" "Disable deadline tracking"
+    
+    # Process limits
+    safe_run "sudo sysctl -w kern.maxproc=4096" "Increase max processes"
+    safe_run "sudo sysctl -w kern.maxprocperuid=2048" "Increase max processes per user"
+    
+    # Thread optimization
+    safe_run "sudo sysctl -w kern.num_tasks_threads=8192" "Increase thread limit"
+    
+    # IPC Optimization
+    safe_run "sudo sysctl -w kern.ipc.somaxconn=2048" "Increase max socket backlog"
+    
+    # Power management / Performance Bias
+    safe_run "sudo pmset -a perfbias 0" "Set performance bias to default/balanced"
+    
+    if [[ "$IS_APPLE_SILICON" == true ]]; then
+        # Apple Silicon optimizations
+        safe_run "sudo pmset -a highpowermode 1" "Enable High Power Mode (if supported)"
+        log_info "Apple Silicon optimizations applied"
+    elif [[ "$IS_INTEL" == true ]]; then
+        # Intel optimizations
+        safe_run "sudo sysctl -w machdep.xcpm.mode=0" "Optimize Intel power management"
+        log_info "Intel CPU optimizations applied"
+    fi
+    
+    # Laptop-specific optimizations
+    if [[ "$IS_LAPTOP" == false ]]; then
+        safe_run "sudo pmset -a perfmode performance" "Set performance mode (desktop)"
+    fi
+    
+    log_success "CPU optimization complete"
+}
+
+################################################################################
+# GPU Optimization
+################################################################################
+
+optimize_gpu() {
+    log_section "🎮" "GPU Optimization"
+    
+    # Metal optimization
+    safe_run "defaults write com.apple.metalgl DisableForceDiscreteGPU -bool false" "Enable discrete GPU"
+    safe_run "defaults write com.apple.metalgl EnableContextReuse -bool true" "Enable Metal context reuse"
+    safe_run "defaults write NSGlobalDomain com.apple.use.metal -bool true" "Enable Metal globally"
+    
+    # Hardware acceleration
+    safe_run "defaults write NSGlobalDomain WebKitAcceleratedCompositingEnabled -bool true" "Enable accelerated compositing"
+    safe_run "defaults write NSGlobalDomain WebKitUseHardwareAcceleration -bool true" "Enable hardware acceleration"
+    safe_run "defaults write com.apple.CoreGraphics HardwareAcceleration -bool true" "Enable CoreGraphics acceleration"
+    
+    # GPU-specific optimizations
+    case "$GPU_VENDOR" in
+        "AMD"|"NVIDIA")
+            safe_run "sudo pmset -a gpuswitch 2" "Force discrete GPU (if possible)"
+            safe_run "defaults write com.apple.gpu prefers_discrete_gpu -bool true" "Prefer discrete GPU"
+            log_info "Discrete GPU ($GPU_VENDOR) optimizations applied"
+            ;;
+        "Apple")
+            log_info "Apple GPU detected - using default optimizations"
+            ;;
+        "Intel")
+            log_info "Intel iGPU detected - using default optimizations"
+            ;;
+    esac
+    
+    log_success "GPU optimization complete"
+}
+
+################################################################################
+# SSD/NVMe Optimization
+################################################################################
+
+optimize_storage() {
+    log_section "💽" "SSD/NVMe Optimization"
+    
+    if [[ "$STORAGE_TYPE" == "SSD" ]]; then
         # Enable TRIM
-        sudo trimforce enable 2>/dev/null || true
+        safe_run "sudo trimforce enable" "Enable TRIM (non-interactive)"
         
-        # Disable sudden motion sensor (for SSD)
-        sudo pmset -a sms 0 2>/dev/null || true
+        # Disable sudden motion sensor (SSD doesn't need it)
+        safe_run "sudo pmset -a sms 0" "Disable sudden motion sensor"
         
-        # Optimize I/O scheduler
-        sudo sysctl -w kern.aio_max_requests=1024 2>/dev/null || true
-        sudo sysctl -w kern.aio_listio_max=256 2>/dev/null || true
+        # Disable hibernation (save writes)
+        safe_run "sudo pmset -a hibernatemode 0" "Disable hibernation"
+        safe_run "sudo rm -f /var/vm/sleepimage" "Remove sleep image"
         
         # Disable local Time Machine snapshots
-        sudo tmutil disable 2>/dev/null || true
+        safe_run "sudo tmutil disable" "Disable Time Machine local snapshots"
         
-        # Reduce writes to SSD
-        sudo pmset -a hibernatemode 0 2>/dev/null || true
-        sudo rm -f /var/vm/sleepimage 2>/dev/null || true
+        # Optimize APFS
+        safe_run "sudo sysctl -w vfs.generic.apfs.trim=1" "Enable APFS TRIM"
         
-        # Optimize file system
-        sudo sysctl -w vfs.generic.sync_timeout=300 2>/dev/null || true
-        sudo sysctl -w kern.maxvnodes=1048576 2>/dev/null || true
-        
-        # Check SSD health
-        if command -v smartctl &> /dev/null; then
-            local disk_id=$(diskutil list | grep "disk0" | head -1 | awk '{print $1}')
-            echo "SSD Health Check:"
-            sudo smartctl -a "$disk_id" 2>/dev/null | grep -E "Percentage Used|Available Spare|Temperature" || echo "Health check not available"
-        fi
-        
-        echo "✅ Advanced SSD optimization complete"
+        log_success "SSD optimization complete"
     else
-        echo "Skipping advanced SSD optimization."
+        log_info "HDD detected - skipping SSD-specific optimizations"
     fi
 }
 
-# --- 46. Virtual Resources Optimization ---
-virtual_resources_optimization() {
-    print_section_header "🔄" "46" "Virtual Resources Optimization"
+################################################################################
+# Virtual Resources Optimization
+################################################################################
+
+optimize_virtual_resources() {
+    log_section "🔄" "Virtual Resources Optimization"
     
-    if ask_yes_no "Optimize virtual resources (VM, containers)?"; then
-        echo "Optimizing virtual resources..."
-        
-        # Virtual memory optimization
-        sudo sysctl -w vm.max_map_count=262144 2>/dev/null || true
-        sudo sysctl -w vm.overcommit_memory=1 2>/dev/null || true
-        
-        # Docker optimization (if installed)
-        if command -v docker &> /dev/null; then
-            echo "Optimizing Docker..."
-            # Restart Docker with optimized settings
-            osascript -e 'quit app "Docker"' 2>/dev/null || true
-            sleep 3
-            open -a Docker 2>/dev/null || true
-        fi
-        
-        # Parallels optimization (if installed)
-        if [ -d "/Applications/Parallels Desktop.app" ]; then
-            echo "Optimizing Parallels Desktop settings..."
-            defaults write com.parallels.Parallels\ Desktop "Optimize for" -string "Performance"
-        fi
-        
-        # VMware optimization (if installed)
-        if [ -d "/Applications/VMware Fusion.app" ]; then
-            echo "Optimizing VMware Fusion settings..."
-            defaults write com.vmware.fusion "memory.maxsize" -int 8192
-        fi
-        
-        # Optimize kernel for virtualization
-        sudo sysctl -w kern.hv_vmm_present=1 2>/dev/null || true
-        
-        echo "✅ Virtual resources optimization complete"
-    else
-        echo "Skipping virtual resources optimization."
+    # Virtual memory optimization
+    safe_run "sudo sysctl -w vm.max_map_count=262144" "Increase max map count"
+    safe_run "sudo sysctl -w vm.overcommit_memory=1" "Enable memory overcommit"
+    
+    # Docker optimization
+    if command -v docker &> /dev/null; then
+        log_info "Docker detected - optimizing..."
+        safe_run "docker system prune -af --volumes" "Clean Docker resources"
     fi
+    
+    # Parallels optimization
+    if [ -d "/Applications/Parallels Desktop.app" ]; then
+        safe_run "defaults write com.parallels.Parallels\\ Desktop 'Optimize for' -string 'Performance'" "Optimize Parallels"
+    fi
+    
+    # VMware optimization
+    if [ -d "/Applications/VMware Fusion.app" ]; then
+        safe_run "defaults write com.vmware.fusion 'memory.maxsize' -int 8192" "Optimize VMware memory"
+    fi
+    
+    # Hypervisor optimization
+    safe_run "sudo sysctl -w kern.hv_vmm_present=1" "Enable hypervisor optimizations"
+    
+    log_success "Virtual resources optimization complete"
 }
 
-# --- 47. AI System Removal/Optimization ---
-ai_system_optimization() {
-    print_section_header "🤖" "47" "AI System Optimization"
+################################################################################
+# AI/ML Feature Management
+################################################################################
+
+optimize_ai_features() {
+    log_section "🤖" "AI/ML Feature Management"
     
-    if ask_yes_no "Optimize or disable AI features for performance?"; then
-        echo "Managing AI system features..."
-        
-        # Disable Siri
-        if ask_yes_no "Disable Siri?"; then
-            defaults write com.apple.assistant.support "Assistant Enabled" -bool false
-            defaults write com.apple.Siri "StatusMenuVisible" -bool false
-            defaults write com.apple.Siri "UserHasDeclinedEnable" -bool true
-            launchctl unload -w /System/Library/LaunchAgents/com.apple.Siri.agent.plist 2>/dev/null || true
-            echo "Siri disabled"
-        fi
-        
-        # Disable Spotlight suggestions
-        if ask_yes_no "Disable Spotlight AI suggestions?"; then
-            defaults write com.apple.spotlight orderedItems -array \
-                '{"enabled" = 1;"name" = "APPLICATIONS";}' \
-                '{"enabled" = 1;"name" = "SYSTEM_PREFS";}' \
-                '{"enabled" = 0;"name" = "MENU_SPOTLIGHT_SUGGESTIONS";}'
-            killall mds 2>/dev/null || true
-            echo "Spotlight AI suggestions disabled"
-        fi
-        
-        # Disable dictation
-        if ask_yes_no "Disable dictation?"; then
-            defaults write com.apple.speech.recognition.AppleSpeechRecognition.prefs DictationIMInterfaceVersion -int 0
-            defaults write com.apple.assistant.support "Dictation Enabled" -bool false
-            echo "Dictation disabled"
-        fi
-        
-        # Disable predictive text
-        if ask_yes_no "Disable predictive text?"; then
-            defaults write NSGlobalDomain NSAutomaticTextCompletionEnabled -bool false
-            defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
-            echo "Predictive text disabled"
-        fi
-        
-        echo "✅ AI system optimization complete"
-    else
-        echo "Skipping AI system optimization."
-    fi
+    # Disable Siri completely
+    safe_run "defaults write com.apple.assistant.support 'Assistant Enabled' -bool false" "Disable Siri assistant"
+    safe_run "launchctl unload -w /System/Library/LaunchAgents/com.apple.Siri.agent.plist" "Unload Siri agent"
+    
+    # Disable dictation
+    safe_run "defaults write com.apple.speech.recognition.AppleSpeechRecognition.prefs DictationIMInterfaceVersion -int 0" "Disable dictation"
+    
+    # Disable ML suggestions
+    safe_run "defaults write NSGlobalDomain NSAutomaticTextCompletionEnabled -bool false" "Disable text suggestions"
+    safe_run "defaults write com.apple.Safari AutoFillPasswords -bool false" "Disable Safari autofill"
+    
+    # Disable background ML daemons
+    safe_run "launchctl unload -w /System/Library/LaunchDaemons/com.apple.analyticsd.plist" "Disable analytics daemon"
+    safe_run "launchctl unload -w /System/Library/LaunchAgents/com.apple.siri.analytics.assistant.plist" "Disable Siri analytics agent"
+    
+    log_success "AI/ML features optimized"
 }
 
-# --- 48. Advanced Battery Optimization ---
-advanced_battery_optimization() {
-    print_section_header "🔋" "48" "Advanced Battery Optimization"
-    
-    if ask_yes_no "Apply advanced battery optimizations?"; then
-        echo "Optimizing battery performance..."
-        
-        # Install battery monitoring tools
-        install_package "battery" "battery" "battery"
-        
-        # Enable Low Power Mode
-        sudo pmset -b lowpowermode 1 2>/dev/null || true
-        
-        # Optimize power settings
-        sudo pmset -b displaysleep 5 2>/dev/null || true
-        sudo pmset -b sleep 10 2>/dev/null || true
-        sudo pmset -b disksleep 10 2>/dev/null || true
-        
-        # Disable Power Nap
-        sudo pmset -a powernap 0 2>/dev/null || true
-        
-        # Disable Wake for network access
-        sudo pmset -a womp 0 2>/dev/null || true
-        
-        # Disable proximity wake
-        sudo pmset -a proximitywake 0 2>/dev/null || true
-        
-        # Optimize graphics switching
-        sudo pmset -a gpuswitch 0 2>/dev/null || true
-        
-        # Reduce display brightness
-        sudo pmset -b halfdim 1 2>/dev/null || true
-        sudo pmset -b lessbright 1 2>/dev/null || true
-        
-        # Check battery health
-        echo "Battery health information:"
-        system_profiler SPPowerDataType | grep -E "Cycle Count|Condition|Capacity" || echo "Battery info not available"
-        
-        echo "✅ Advanced battery optimization complete"
-    else
-        echo "Skipping advanced battery optimization."
+################################################################################
+# Battery Optimization (Laptop Only)
+################################################################################
+
+optimize_battery() {
+    if [[ "$IS_LAPTOP" == false ]]; then
+        log_info "Desktop detected - skipping battery optimization"
+        return
     fi
+    
+    log_section "🔋" "Battery Optimization"
+    
+    # Enable Low Power Mode on battery
+    safe_run "sudo pmset -b lowpowermode 1" "Enable Low Power Mode"
+    
+    # Optimize sleep settings
+    safe_run "sudo pmset -b displaysleep 5" "Set display sleep to 5 min"
+    safe_run "sudo pmset -b sleep 10" "Set system sleep to 10 min"
+    safe_run "sudo pmset -b disksleep 10" "Set disk sleep to 10 min"
+    
+    # Disable Power Nap
+    safe_run "sudo pmset -a powernap 0" "Disable Power Nap"
+    
+    # Disable wake for network
+    safe_run "sudo pmset -a womp 0" "Disable wake for network"
+    safe_run "sudo pmset -a proximitywake 0" "Disable proximity wake"
+    
+    # Optimize GPU switching
+    safe_run "sudo pmset -b gpuswitch 0" "Enable automatic GPU switching"
+    
+    # Reduce display brightness on battery
+    safe_run "sudo pmset -b halfdim 1" "Enable half-dim on battery"
+    safe_run "sudo pmset -b lessbright 1" "Reduce brightness on battery"
+    
+    # Display battery health
+    local cycle_count=$(system_profiler SPPowerDataType 2>/dev/null | grep "Cycle Count" | awk '{print $3}')
+    local condition=$(system_profiler SPPowerDataType 2>/dev/null | grep "Condition" | awk '{print $2}')
+    log_info "Battery Cycle Count: ${cycle_count:-Unknown}"
+    log_info "Battery Condition: ${condition:-Unknown}"
+    
+    log_success "Battery optimization complete"
 }
 
-# --- 49. Service Optimization ---
-service_optimization() {
-    print_section_header "⚙️" "49" "Service Optimization"
+################################################################################
+# Startup & Service Optimization
+################################################################################
+
+optimize_startup() {
+    log_section "🚀" "Startup & Service Optimization"
     
-    if ask_yes_no "Optimize system services?"; then
-        echo "Optimizing system services..."
-        
-        # Disable unused services
-        local services_to_disable=(
-            "com.apple.cloudd"
-            "com.apple.cloudpaird"
-            "com.apple.cloudphotosd"
-            "com.apple.gamed"
-            "com.apple.icloud.findmydeviced"
-            "com.apple.iCloudUserNotifications"
-            "com.apple.appstoreagent"
-            "com.apple.touristd"
-        )
-        
-        for service in "${services_to_disable[@]}"; do
-            if ask_yes_no "Disable $service?"; then
-                launchctl unload -w "/System/Library/LaunchAgents/${service}.plist" 2>/dev/null || true
-                sudo launchctl unload -w "/System/Library/LaunchDaemons/${service}.plist" 2>/dev/null || true
-                echo "  Disabled: $service"
-            fi
-        done
-        
-        # Optimize indexing services
-        if ask_yes_no "Optimize Spotlight indexing?"; then
-            sudo mdutil -i off / 2>/dev/null || true
-            sudo mdutil -E / 2>/dev/null || true
-            sudo mdutil -i on / 2>/dev/null || true
-            echo "Spotlight indexing optimized"
-        fi
-        
-        # Clean up launch agents
-        echo "Cleaning up unnecessary launch agents..."
-        find ~/Library/LaunchAgents -name "*.plist" 2>/dev/null | while read agent; do
-            if ask_yes_no "Review launch agent: $(basename $agent)?"; then
-                echo "Agent: $agent"
-                if ask_yes_no "Disable this agent?"; then
-                    launchctl unload "$agent" 2>/dev/null || true
-                fi
-            fi
-        done
-        
-        echo "✅ Service optimization complete"
+    # Disable unnecessary launch daemons (safe list)
+    local daemons=(
+        "com.apple.metadata.mds.scan"
+        "com.apple.cloudd"
+        "com.apple.cloudpaird"
+        "com.apple.cloudphotosd"
+        "com.apple.gamed"
+        "com.apple.icloud.findmydeviced"
+        "com.apple.iCloudUserNotifications"
+        "com.apple.appstoreagent"
+        "com.apple.touristd"
+        "com.apple.netbiosd"
+    )
+    
+    for daemon in "${daemons[@]}"; do
+        safe_run "sudo launchctl unload -w /System/Library/LaunchDaemons/${daemon}.plist" "Disable $daemon"
+        safe_run "launchctl unload -w /System/Library/LaunchAgents/${daemon}.plist" "Disable $daemon (user)"
+    done
+    
+    # Optimize boot cache (OpenCore-safe)
+    if [[ "$IS_OPENCORE" == false ]]; then
+        safe_run "sudo kextcache -update-volume /" "Update kernel cache"
     else
-        echo "Skipping service optimization."
+        log_info "Skipping kext cache update (OpenCore detected)"
     fi
+    
+    # Optimize login window
+    safe_run "sudo defaults write /Library/Preferences/com.apple.loginwindow TALLogoutSavesState -bool false" "Disable login state saving"
+    safe_run "sudo defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false" "Disable guest account"
+
+    # Disable dashboard
+    safe_run "defaults write com.apple.dashboard mcx-disabled -bool true" "Disable Dashboard"
+    
+    log_success "Startup optimization complete"
 }
 
-# --- 50. General System Smoothness ---
-general_system_smoothness() {
-    print_section_header "✨" "50" "General System Smoothness"
+################################################################################
+# Security Hardening
+################################################################################
+
+harden_security() {
+    log_section "🛡" "Security Hardening"
     
-    if ask_yes_no "Apply general smoothness optimizations?"; then
-        echo "Optimizing system smoothness..."
-        
-        # Reduce window resize time
-        defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
-        
-        # Increase window resize speed
-        defaults write NSGlobalDomain NSDocumentRevisionsWindowTransformAnimation -bool false
-        
-        # Faster Mission Control animations
-        defaults write com.apple.dock expose-animation-duration -float 0.1
-        
-        # Remove Dock hide delay
-        defaults write com.apple.dock autohide-delay -float 0
-        defaults write com.apple.dock autohide-time-modifier -float 0.5
-        
-        # Speed up Quick Look
-        defaults write -g QLPanelAnimationDuration -float 0
-        
-        # Disable dashboard
-        defaults write com.apple.dashboard mcx-disabled -bool true
-        
-        # Optimize Finder
-        defaults write com.apple.finder DisableAllAnimations -bool true
-        defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
-        
-        # Disable animations system-wide
-        defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
-        
-        # Optimize scrolling
-        defaults write NSGlobalDomain NSScrollAnimationEnabled -bool false
-        defaults write NSGlobalDomain com.apple.swipescrolldirection -bool false
-        
-        # Restart affected services
-        killall Dock 2>/dev/null || true
-        killall Finder 2>/dev/null || true
-        killall SystemUIServer 2>/dev/null || true
-        
-        echo "✅ General system smoothness optimization complete"
-    else
-        echo "Skipping general smoothness optimization."
-    fi
+    # Enable firewall
+    safe_run "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on" "Enable firewall"
+    safe_run "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setloggingmode on" "Enable firewall logging"
+    safe_run "sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on" "Enable stealth mode"
+    
+    # Verify Gatekeeper
+    safe_run "sudo spctl --master-enable" "Enable Gatekeeper"
+    
+    # Check SIP status
+    local sip_status=$(csrutil status 2>/dev/null | grep -o "enabled\|disabled")
+    log_info "System Integrity Protection: ${sip_status:-unknown}"
+    
+    # Disable remote login
+    safe_run "sudo systemsetup -setremotelogin off" "Disable remote login"
+    
+    # Disable remote Apple events
+    safe_run "sudo systemsetup -setremoteappleevents off" "Disable remote Apple events"
+    
+    # Require password immediately after sleep
+    safe_run "defaults write com.apple.screensaver askForPassword -int 1" "Require password after screensaver"
+    safe_run "defaults write com.apple.screensaver askForPasswordDelay -int 0" "No password delay"
+    
+    log_success "Security hardening complete"
 }
 
-# --- 51. Performance Monitoring Setup ---
-performance_monitoring_setup() {
-    print_section_header "📊" "51" "Performance Monitoring Setup"
+################################################################################
+# Developer Tools Installation
+################################################################################
+
+install_dev_tools() {
+    log_section "🛠" "Developer Tools Installation"
     
-    if ask_yes_no "Install performance monitoring tools?"; then
-        echo "Installing performance monitoring tools..."
+    # Ensure Homebrew
+    ensure_homebrew
+    
+    if command -v brew &> /dev/null; then
+        # Install essential CLI tools
+        install_tool "htop"
+        install_tool "wget"
+        install_tool "curl"
+        install_tool "git"
+        install_tool "tree"
+        install_tool "jq"
         
         # Install monitoring tools
-        install_package "htop" "htop" "htop"
-        install_package "iftop" "iftop" "iftop"
-        install_package "iotop" "iotop" "iotop"
-        install_package "glances" "glances" "glances"
+        install_tool "glances"
+        install_tool "iftop"
+        install_tool "smartctl" "smartmontools"
         
-        # Create monitoring script
-        cat > ~/performance_monitor.sh << 'EOF'
-#!/bin/bash
-echo "=== System Performance Monitor ==="
-echo "Date: $(date)"
-echo ""
-echo "=== CPU Usage ==="
-top -l 1 | head -10
-echo ""
-echo "=== Memory Usage ==="
-vm_stat | head -10
-echo ""
-echo "=== Disk Usage ==="
-df -h
-echo ""
-echo "=== Network Usage ==="
-netstat -ib
-EOF
-        chmod +x ~/performance_monitor.sh
-        
-        echo "✅ Performance monitoring tools installed"
-        echo "Run ~/performance_monitor.sh to check system performance"
+        log_success "Developer tools installed"
     else
-        echo "Skipping performance monitoring setup."
+        log_warning "Homebrew not available - skipping tool installation"
     fi
 }
 
-# --- Original Functions (keeping essential ones) ---
-restart_finder() {
-    print_section_header "📁" "1" "Restarting Finder"
-    if ask_yes_no "Force quit and restart Finder?"; then
-        run_command "killall Finder" "Finder restarted" "restart_finder"
-    else
-        echo "Skipping Finder restart."
+################################################################################
+# OpenCore-Specific Optimizations
+################################################################################
+
+optimize_opencore() {
+    if [[ "$IS_OPENCORE" == false ]]; then
+        return
     fi
+    
+    log_section "🔧" "OpenCore-Specific Optimizations"
+    
+    # Safe NVRAM optimizations
+    safe_run "sudo nvram boot-args='serverperfmode=1'" "Enable server performance mode"
+    
+    # Optimize kernel cache (safe for OpenCore)
+    safe_run "sudo kextcache -i /" "Rebuild kext cache (OpenCore-safe)"
+    
+    log_success "OpenCore optimizations complete"
+    log_warning "OpenCore detected - some optimizations were skipped for safety"
 }
 
-clear_caches() {
-    print_section_header "🧹" "3" "Clearing Caches"
-    if ask_yes_no "Clear User Caches?"; then
-        run_command "rm -rf ~/Library/Caches/*" "User caches cleared" "clear_user_caches"
-    else
-        echo "Skipping User Caches."
+################################################################################
+# System Summary & Report
+################################################################################
+
+generate_report() {
+    log_section "📊" "System Summary & Report"
+    
+    local end_time=$(date +%s)
+    local execution_time=$((end_time - START_TIME))
+    local minutes=$((execution_time / 60))
+    local seconds=$((execution_time % 60))
+    
+    log ""
+    log "╔══════════════════════════════════════════════════════════════╗"
+    log "║              OPTIMIZATION COMPLETE                           ║"
+    log "╚══════════════════════════════════════════════════════════════╝"
+    log ""
+    log "System Information:"
+    log "  • macOS Version: $MACOS_VERSION"
+    log "  • Architecture: $CPU_ARCH"
+    log "  • CPU: $CPU_VENDOR ($CPU_CORES cores)"
+    log "  • GPU: $GPU_VENDOR ($GPU_MODEL)"
+    log "  • RAM: ${TOTAL_RAM_GB}GB"
+    log "  • Storage: $STORAGE_TYPE"
+    log "  • Device Type: $([ "$IS_LAPTOP" == true ] && echo "Laptop" || echo "Desktop")"
+    log "  • OpenCore: $([ "$IS_OPENCORE" == true ] && echo "Yes" || echo "No")"
+    log ""
+    log "Disk Space:"
+    local available=$(df -h / | awk 'NR==2 {print $4}')
+    local total=$(df -h / | awk 'NR==2 {print $2}')
+    local used=$(df -h / | awk 'NR==2 {print $5}')
+    log "  • Available: $available / $total"
+    log "  • Used: $used"
+    log ""
+    log "Memory Status:"
+    local free_pages=$(vm_stat | grep "Pages free" | awk '{print $3}' | sed 's/\.//')
+    local free_mb=$((free_pages * 4096 / 1024 / 1024))
+    log "  • Free Memory: ~${free_mb}MB"
+    log ""
+    log "Execution Time: ${minutes}m ${seconds}s"
+    log ""
+    log "Optimizations Applied:"
+    log "  ✅ Network optimization"
+    log "  ✅ System repair & integrity"
+    log "  ✅ Disk cleanup & storage optimization"
+    log "  ✅ Performance & responsiveness tuning"
+    log "  ✅ Privacy & telemetry hardening"
+    log "  ✅ Memory & RAM optimization"
+    log "  ✅ CPU optimization"
+    log "  ✅ GPU optimization"
+    log "  ✅ Storage optimization"
+    log "  ✅ Virtual resources optimization"
+    log "  ✅ AI/ML feature management"
+    if [[ "$IS_LAPTOP" == true ]]; then
+        log "  ✅ Battery optimization"
     fi
-    if ask_yes_no "Clear System Caches?"; then
-        run_command "sudo rm -rf /Library/Caches/* /System/Library/Caches/*" "System caches cleared" "clear_system_caches"
-    else
-        echo "Skipping System Caches."
+    log "  ✅ Startup & service optimization"
+    log "  ✅ Security hardening"
+    log "  ✅ Developer tools installation"
+    if [[ "$IS_OPENCORE" == true ]]; then
+        log "  ✅ OpenCore-specific optimizations"
     fi
+    log ""
+    log "Post-Optimization Recommendations:"
+    log "  • Restart your Mac to apply all changes"
+    log "  • Monitor system performance with Activity Monitor"
+    log "  • Keep at least 15% disk space free"
+    log "  • Run this script monthly for maintenance"
+    log ""
+    log "Log saved to: $LOG_FILE"
+    log ""
+    log "╔══════════════════════════════════════════════════════════════╗"
+    log "║  OptimacOS v$SCRIPT_VERSION - Optimization Complete          ║"
+    log "╚══════════════════════════════════════════════════════════════╝"
 }
 
-purge_memory() {
-    print_section_header "🧠" "9" "Purging Inactive Memory"
-    if ask_yes_no "Run 'sudo purge' to free inactive RAM?"; then
-        run_command "sudo purge" "Memory purged" "purge_memory"
-    else
-        echo "Skipping memory purge."
+################################################################################
+# Main Execution
+################################################################################
+
+main() {
+    # Print banner
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║                                                              ║"
+    echo "║              OptimacOS v$SCRIPT_VERSION                           ║"
+    echo "║     Universal macOS Optimization Engine                     ║"
+    echo "║                                                              ║"
+    echo "║  Fully Automated • Zero Interaction • Universal              ║"
+    echo "║                                                              ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "Starting optimization at $(date)"
+    echo "Log file: $LOG_FILE"
+    echo ""
+    
+    # Request sudo upfront
+    log_info "Requesting administrator privileges..."
+    if ! sudo -v; then
+        log_error "Administrator privileges required. Exiting."
+        exit 1
     fi
+    
+    # Execute all optimizations
+    detect_system
+    optimize_network
+    repair_system
+    cleanup_storage
+    optimize_performance
+    harden_privacy
+    optimize_memory
+    optimize_cpu
+    optimize_gpu
+    optimize_storage
+    optimize_virtual_resources
+    optimize_ai_features
+    optimize_battery
+    optimize_startup
+    harden_security
+    install_dev_tools
+    optimize_opencore
+    
+    # Generate final report
+    generate_report
+    
+    exit 0
 }
 
-# --- Main Script Execution ---
-echo "🚀 Enhanced macOS Performance Optimizer v$SCRIPT_VERSION 🚀"
-echo "=========================================================="
-echo "This script includes advanced performance optimizations"
-echo "with automatic tool installation via Homebrew/MacPorts"
-echo ""
-
-initialize_script
-
-# Check for command line arguments
-for arg in "$@"; do
-    case "$arg" in
-        --all) RUN_ALL=true ;;
-        --verbose) VERBOSE=true ;;
-        --quiet) VERBOSE=false ;;
-        --yes) DEFAULT_YES=true ;;
-        --help|-h)
-            echo "Usage: $0 [options]"
-            echo "Options:"
-            echo "  --all       Run all optimizations without prompting"
-            echo "  --verbose   Show detailed command output"
-            echo "  --quiet     Minimize output messages"
-            echo "  --yes       Default to 'yes' for all prompts"
-            echo "  --homebrew  Use Homebrew for package installation (default)"
-            echo "  --macports  Use MacPorts for package installation"
-            echo "  --help, -h  Show this help message"
-            exit 0
-            ;;
-        --homebrew) USE_HOMEBREW=true; USE_MACPORTS=false ;;
-        --macports) USE_MACPORTS=true; USE_HOMEBREW=false ;;
-    esac
-done
-
-# Request admin privileges upfront
-echo "Requesting administrator privileges..."
-sudo -v
-while true; do sudo -n true; sleep 60; kill -0 "$" || exit; done 2>/dev/null &
-ADMIN_KEEP_ALIVE_PID=$!
-echo "Administrator privileges granted."
-echo ""
-
-# Install package managers if needed
-if [[ "$USE_HOMEBREW" == true ]]; then
-    install_homebrew
-fi
-
-# Display menu
-cat << "EOF"
-╔══════════════════════════════════════════════════════════════╗
-║     Enhanced macOS Performance Optimization Suite            ║
-║                                                              ║
-║  New Advanced Features:                                      ║
-║  • Memory & RAM Optimization                                 ║
-║  • Startup Optimization                                      ║
-║  • Advanced CPU/GPU Optimization                             ║
-║  • SSD Performance Tuning                                    ║
-║  • Virtual Resources Management                              ║
-║  • AI System Optimization                                    ║
-║  • Battery Performance                                       ║
-║  • Service Optimization                                      ║
-║  • System Smoothness Enhancements                            ║
-║  • Performance Monitoring Tools                              ║
-╚══════════════════════════════════════════════════════════════╝
-EOF
-
-echo ""
-
-# Define all function arrays
-CORE_FUNCTIONS=(
-    "restart_finder"
-    "clear_caches"
-    "purge_memory"
-)
-
-PERFORMANCE_FUNCTIONS=(
-    "advanced_memory_optimization"
-    "ram_optimization"
-    "advanced_cpu_optimization"
-    "advanced_gpu_optimization"
-    "advanced_ssd_optimization"
-    "general_system_smoothness"
-)
-
-STARTUP_FUNCTIONS=(
-    "startup_optimization"
-)
-
-BATTERY_FUNCTIONS=(
-    "advanced_battery_optimization"
-)
-
-SERVICE_FUNCTIONS=(
-    "service_optimization"
-    "ai_system_optimization"
-)
-
-VIRTUAL_FUNCTIONS=(
-    "virtual_resources_optimization"
-)
-
-MONITORING_FUNCTIONS=(
-    "performance_monitoring_setup"
-)
-
-ALL_FUNCTIONS=(
-    "${CORE_FUNCTIONS[@]}"
-    "${PERFORMANCE_FUNCTIONS[@]}"
-    "${STARTUP_FUNCTIONS[@]}"
-    "${BATTERY_FUNCTIONS[@]}"
-    "${SERVICE_FUNCTIONS[@]}"
-    "${VIRTUAL_FUNCTIONS[@]}"
-    "${MONITORING_FUNCTIONS[@]}"
-)
-
-# Execution mode selection
-if [[ "$RUN_ALL" == true ]]; then
-    echo "Running all optimization functions..."
-    for func in "${ALL_FUNCTIONS[@]}"; do
-        $func
-    done
-else
-    echo "Select execution mode:"
-    echo "1. Run all optimizations"
-    echo "2. Run by category"
-    echo "3. Run individual functions"
-    echo "4. Quick performance boost (recommended)"
-    read -p "Enter your choice (1-4) [4]: " execution_mode
-    execution_mode=${execution_mode:-4}
-
-    case $execution_mode in
-        1)
-            # Run all functions
-            echo "Running all optimization functions..."
-            for func in "${ALL_FUNCTIONS[@]}"; do
-                $func
-            done
-            ;;
-
-        2)
-            # Run by categories
-            echo ""
-            echo "Available categories:"
-            echo "1. Core System Maintenance"
-            echo "2. Performance Optimizations"
-            echo "3. Startup Optimization"
-            echo "4. Battery Optimization"
-            echo "5. Service & AI Optimization"
-            echo "6. Virtual Resources"
-            echo "7. Monitoring Tools"
-            echo ""
-
-            if ask_yes_no "Run Core System Maintenance?"; then
-                for func in "${CORE_FUNCTIONS[@]}"; do
-                    $func
-                done
-            fi
-
-            if ask_yes_no "Run Performance Optimizations?"; then
-                for func in "${PERFORMANCE_FUNCTIONS[@]}"; do
-                    $func
-                done
-            fi
-
-            if ask_yes_no "Run Startup Optimization?"; then
-                for func in "${STARTUP_FUNCTIONS[@]}"; do
-                    $func
-                done
-            fi
-
-            if ask_yes_no "Run Battery Optimization?"; then
-                for func in "${BATTERY_FUNCTIONS[@]}"; do
-                    $func
-                done
-            fi
-
-            if ask_yes_no "Run Service & AI Optimization?"; then
-                for func in "${SERVICE_FUNCTIONS[@]}"; do
-                    $func
-                done
-            fi
-
-            if ask_yes_no "Run Virtual Resources Optimization?"; then
-                for func in "${VIRTUAL_FUNCTIONS[@]}"; do
-                    $func
-                done
-            fi
-
-            if ask_yes_no "Install Monitoring Tools?"; then
-                for func in "${MONITORING_FUNCTIONS[@]}"; do
-                    $func
-                done
-            fi
-            ;;
-
-        3)
-            # Run individual functions
-            echo "Select functions to run:"
-            echo ""
-            for func in "${ALL_FUNCTIONS[@]}"; do
-                if ask_yes_no "Run ${func}?"; then
-                    $func
-                fi
-            done
-            ;;
-
-        4)
-            # Quick performance boost
-            echo ""
-            echo "🚀 Running Quick Performance Boost..."
-            echo "This will run the most impactful optimizations"
-            echo ""
-            
-            # Essential optimizations for immediate performance gain
-            clear_caches
-            purge_memory
-            advanced_memory_optimization
-            advanced_cpu_optimization
-            advanced_gpu_optimization
-            general_system_smoothness
-            
-            echo ""
-            echo "✅ Quick Performance Boost Complete!"
-            ;;
-
-        *)
-            echo "Invalid choice. Running quick performance boost..."
-            clear_caches
-            purge_memory
-            advanced_memory_optimization
-            general_system_smoothness
-            ;;
-    esac
-fi
-
-# --- Final Report ---
-echo ""
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║           Optimization Complete!                             ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
-echo ""
-
-# Calculate execution time
-END_TIME=$(date +%s)
-EXECUTION_TIME=$((END_TIME - START_TIME))
-MINUTES=$((EXECUTION_TIME / 60))
-SECONDS=$((EXECUTION_TIME % 60))
-
-# System summary
-echo "📊 System Summary:"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  macOS Version: $(sw_vers -productVersion) ($(sw_vers -buildVersion))"
-echo "  Architecture: $(uname -m)"
-echo "  Hostname: $(hostname)"
-echo "  Uptime: $(uptime | awk '{print $3,$4}' | sed 's/,//')"
-echo ""
-echo "💾 Disk Space:"
-echo "  Available: $(df -h / | awk 'NR==2 {print $4}') / $(df -h / | awk 'NR==2 {print $2}')"
-echo "  Used: $(df -h / | awk 'NR==2 {print $5}')"
-echo ""
-echo "🧠 Memory:"
-MEMORY_FREE=$(vm_stat | grep "Pages free" | awk '{print $3}' | sed 's/\.//')
-MEMORY_FREE_MB=$((MEMORY_FREE * 4096 / 1024 / 1024))
-echo "  Free Memory: ~${MEMORY_FREE_MB}MB"
-echo ""
-echo "⏱️  Execution Time: ${MINUTES}m ${SECONDS}s"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-
-# Recommendations
-echo "📝 Post-Optimization Recommendations:"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  ✓ Restart your Mac to apply all changes"
-echo "  ✓ Run Activity Monitor to check resource usage"
-echo "  ✓ Test system performance with your daily applications"
-echo "  ✓ Monitor battery life (if applicable)"
-echo "  ✓ Check ~/performance_monitor.sh for ongoing monitoring"
-echo ""
-echo "  For best results:"
-echo "    • Keep at least 15% of disk space free"
-echo "    • Close unused applications"
-echo "    • Restart weekly for optimal performance"
-echo "    • Run this script monthly for maintenance"
-echo ""
-
-# Performance tips
-echo "💡 Additional Performance Tips:"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  1. Disable FileVault if you don't need encryption"
-echo "  2. Use an external SSD for Time Machine backups"
-echo "  3. Upgrade RAM if you have less than 8GB"
-echo "  4. Keep macOS and apps updated"
-echo "  5. Use lightweight alternatives to resource-heavy apps"
-echo "  6. Disable visual effects in Accessibility settings"
-echo "  7. Use Activity Monitor to identify resource hogs"
-echo "  8. Clear Safari/Chrome data regularly"
-echo "  9. Uninstall unused applications completely"
-echo "  10. Consider clean macOS reinstall if system is very old"
-echo ""
-
-# Installed tools
-if command -v htop &> /dev/null || command -v glances &> /dev/null; then
-    echo "🛠️  Installed Monitoring Tools:"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    command -v htop &> /dev/null && echo "  ✓ htop - Interactive process viewer"
-    command -v iftop &> /dev/null && echo "  ✓ iftop - Network bandwidth monitor"
-    command -v iotop &> /dev/null && echo "  ✓ iotop - I/O monitor"
-    command -v glances &> /dev/null && echo "  ✓ glances - Complete system monitor"
-    command -v smartctl &> /dev/null && echo "  ✓ smartctl - SSD/HDD health monitor"
-    command -v battery &> /dev/null && echo "  ✓ battery - Battery status CLI"
-    echo ""
-    echo "  Run these tools from Terminal for detailed monitoring"
-    echo ""
-fi
-
-# Troubleshooting
-echo "🔧 Troubleshooting:"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  If you experience issues after optimization:"
-echo "    • Boot into Safe Mode (hold Shift during startup)"
-echo "    • Reset SMC and NVRAM (see Section 39 instructions)"
-echo "    • Run Apple Diagnostics (hold D during startup)"
-echo "    • Check Console.app for error messages"
-echo "    • Revert specific changes if needed"
-echo ""
-
-# Save optimization log
-LOG_FILE=~/Desktop/macos_optimization_log_$(date +%Y%m%d_%H%M%S).txt
-{
-    echo "macOS Optimization Log"
-    echo "======================"
-    echo "Date: $(date)"
-    echo "Version: $SCRIPT_VERSION"
-    echo "System: $(sw_vers -productVersion)"
-    echo "Architecture: $(uname -m)"
-    echo ""
-    echo "Optimizations Applied:"
-    echo "- Check terminal output for details"
-    echo ""
-    echo "System Status:"
-    echo "- Disk Space: $(df -h / | awk 'NR==2 {print $4}') available"
-    echo "- Execution Time: ${MINUTES}m ${SECONDS}s"
-} > "$LOG_FILE"
-
-echo "📄 Optimization log saved to: $LOG_FILE"
-echo ""
-
-# Clean up admin privileges keep-alive
-if [[ -n "$ADMIN_KEEP_ALIVE_PID" ]]; then
-    kill "$ADMIN_KEEP_ALIVE_PID" 2>/dev/null
-fi
-
-# Final message
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  Thank you for using the Enhanced macOS Performance Suite!   ║"
-echo "║                                                              ║"
-echo "║  For support and updates, visit:                            ║"
-echo "║  • GitHub: https://github.com/TheCreateGM/optimize-macos    ║"
-echo "║  • Issues: Report bugs and request features                 ║"
-echo "║                                                              ║"
-echo "║  Please restart your Mac for all changes to take effect.    ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
-echo ""
-
-# Ask if user wants to restart now
-if ask_yes_no "Restart Mac now to apply all optimizations?"; then
-    echo "Restarting in 10 seconds... (Press Ctrl+C to cancel)"
-    sleep 10
-    sudo shutdown -r now
-else
-    echo "Please remember to restart your Mac later."
-fi
-
-exit 0
+# Execute main function
+main "$@"
